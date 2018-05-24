@@ -15,6 +15,9 @@ RUN apt-get update && \
     apt-get install -y cmake g++ && \
     apt-get clean
 
+# Install all python requirements.
+RUN pip install -r requirements.txt
+
 # Install Chronos
 RUN git clone https://github.com/pierfied/Chronos.git && \
     cd Chronos && \
@@ -23,6 +26,3 @@ RUN git clone https://github.com/pierfied/Chronos.git && \
     cp libchronos.so /usr/local/lib/ && \
     cd .. && \
     rm -rf Chronos/
-
-# Install all python requirements.
-RUN pip install -r requirements.txt
