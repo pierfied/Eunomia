@@ -1,5 +1,9 @@
 FROM continuumio/anaconda3:latest
 
+# Update anaconda and all packages.
+RUN conda update -y conda && \
+    conda update -y --all
+
 # Set the working directory to /app
 WORKDIR /app
 
