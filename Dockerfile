@@ -23,3 +23,6 @@ RUN git clone https://github.com/pierfied/Chronos.git && \
     cp libchronos.so /usr/local/lib/ && \
     cd .. && \
     rm -rf Chronos/
+
+# Install all python requirements.
+RUN pip install -r requirements.txt
