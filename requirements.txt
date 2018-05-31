@@ -1,2 +1,6 @@
-healpy
+astropy
 ChainConsumer
+healpy
+numpy
+matplotlib
+pandas
