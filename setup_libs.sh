@@ -15,6 +15,7 @@ rm -rf Chronos
 mkdir likelihood
 cp -r src CMakeLists.txt likelihood
 cd likelihood
+ln -s ../include include
 cmake .
 make
 mv liblikelihood.so ../lib
