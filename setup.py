@@ -1,4 +1,12 @@
 from setuptools import setup
+from setuptools.command.install import install
+
+
+class ScriptInstall(install):
+    def run(self):
+        install.run(self)
+        print("\n\n\n\nCustom Installer\n\n\n\n")
+
 
 setup(
     name='eunomia',
@@ -8,5 +16,6 @@ setup(
     license='',
     author='Pier Fiedorowicz',
     author_email='pierfied@email.arizona.edu',
-    description=''
+    description='',
+    cmdclass={'install': ScriptInstall}
 )
