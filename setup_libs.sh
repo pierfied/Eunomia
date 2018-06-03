@@ -16,6 +16,7 @@ mkdir likelihood
 cp -r src CMakeLists.txt likelihood
 cd likelihood
 ln -s ../include include
+ln -s ../lib lib
 cmake .
 make
 mv liblikelihood.so ../lib
