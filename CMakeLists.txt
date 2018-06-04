@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 2.8)
 project(likelihood)
 
+cmake_policy(SET CMP0015 NEW)
+
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY lib)
+
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
@@ -13,8 +17,9 @@ if (OPENMP_FOUND)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 endif ()
 
+link_directories(lib)
+
 file(GLOB SOURCES src/*.h src/*.c)
 add_library(likelihood SHARED ${SOURCES})
 
-find_library(CHRONOS_LIB chronos lib)
-target_link_libraries(likelihood ${CHRONOS_LIB})
+target_link_libraries(likelihood chronos)
