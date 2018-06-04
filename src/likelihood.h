@@ -10,9 +10,6 @@
 typedef struct {
     int num_params;
     int *y_inds;
-    int nx;
-    int ny;
-    int nz;
     double mu;
     double *inv_cov;
 } LikelihoodArgs;

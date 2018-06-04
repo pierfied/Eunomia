@@ -33,10 +33,6 @@ Hamiltonian map_likelihood(double *y, void *args_ptr) {
     double mu = args->mu;
     double *inv_cov = args->inv_cov;
 
-    int nx = args->nx;
-    int ny = args->ny;
-    int nz = args->nz;
-
     int *y_inds = args->y_inds;
 
     int num_params = args->num_params;
@@ -44,41 +40,30 @@ Hamiltonian map_likelihood(double *y, void *args_ptr) {
 
     double normal_contrib = 0;
 #pragma omp parallel for
-    for (int i = 0; i < nx; i++) {
-        for (int j = 0; j < ny; j++) {
-            for (int k = 0; k < nz; k++) {
-                // Check that this is a high occupancy voxel.
-                int ind1 = i * ny * nz + j * nz + k;
-                if (y_inds[ind1] < 0) continue;
-                int y1 = y_inds[ind1];
+    for (int i = 0; i < num_params; i++) {
+        // Check that this is a high occupancy voxel.
+        if (y_inds[i] < 0) continue;
+        int y1 = y_inds[i];
 
-                // Loop over neighbors.
-                double neighbor_contrib = 0;
-                for (int a = 0; a < nx; a++) {
-                    for (int b = 0; b < ny; b++) {
-                        for (int c = 0; c < nz; ++c) {
-                            // Check that this neighbor is high-occupancy.
-                            int ind2 = a * ny * nz + b * nz + c;
-                            if (y_inds[ind2] < 0) continue;
-                            int y2 = y_inds[ind2];
+        // Loop over neighbors.
+        double neighbor_contrib = 0;
+        for (int j = 0; j < num_params; j++) {
+            if (y_inds[j] < 0) continue;
+            int y2 = y_inds[j];
 
-                            // Compute the neighbor contribution.
-                            int ic_ind = ind1 * nx * ny * nz + ind2;
-                            neighbor_contrib += inv_cov[ic_ind] * (y[y2] - mu);
-                        }
-                    }
-                }
+            // Compute the neighbor contribution.
+            int ic_ind = num_params * i + j;
+            neighbor_contrib += inv_cov[ic_ind] * (y[y2] - mu);
+        }
 
 #pragma omp critical
-                {
-                    // Compute the total contribution of this voxel to the normal.
-                    normal_contrib += (y[y1] - mu) * neighbor_contrib;
-                }
-
-                // Compute the gradient for the voxel.
-                grad[y1] = -neighbor_contrib;
-            }
+        {
+            // Compute the total contribution of this voxel to the normal.
+            normal_contrib += (y[y1] - mu) * neighbor_contrib;
         }
+
+        // Compute the gradient for the voxel.
+        grad[y1] = -neighbor_contrib;
     }
     normal_contrib *= -0.5;
 
