@@ -17,9 +17,9 @@ if (OPENMP_FOUND)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 endif ()
 
-link_directories(lib)
-
 file(GLOB SOURCES src/*.h src/*.c)
 add_library(likelihood SHARED ${SOURCES})
 
-target_link_libraries(likelihood chronos)
+get_filename_component(LIB_PATH lib REALPATH)
+find_library(CHRONOS_LIB chronos ${LIB_PATH})
+target_link_libraries(likelihood ${CHRONOS_LIB})

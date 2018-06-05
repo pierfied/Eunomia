@@ -4,7 +4,7 @@ dirs:
 	mkdir include && \
 	mkdir lib
 
-chronos: dirs
+chronos:
 	git clone https://github.com/pierfied/Chronos.git && \
 	cd ./Chronos && \
 	pwd && \
@@ -15,7 +15,7 @@ chronos: dirs
 	cd .. && \
 	rm -rf Chronos
 
-likelihood: dirs chronos
+likelihood:
 	mkdir likelihood && \
 	cp -r src CMakeLists.txt likelihood && \
 	cd likelihood && \
