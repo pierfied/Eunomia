@@ -46,6 +46,7 @@ def full_neighbor_cov_from_cl(cl, nside, indices=None):
     cov = np.zeros([npix, npix])
     for i in range(npix):
         neighbors = np.concatenate((hp.pixelfunc.get_all_neighbours(nside, i), [i]))
+        neighbors = np.intersect1d(neighbors, indices)
         ang_sep[i, neighbors] = hp.rotator.angdist(ang_coords[:, i], ang_coords[:, neighbors])
         cov[i, neighbors] = cov_sep_theta_from_cl(ang_sep[i, neighbors], cl)
 

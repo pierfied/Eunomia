@@ -51,7 +51,7 @@ class MapSampler:
         args.mu = mu
         args.inv_cov = inv_cov.ravel().ctypes.data_as(ctypes.POINTER(ctypes.c_double))
 
-        y0 = np.random.standard_normal(num_params)
+        y0 = mu + np.random.standard_normal(num_params) * sigma
         y0_p = y0.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
 
         m = np.ones(num_params, dtype=np.double)
