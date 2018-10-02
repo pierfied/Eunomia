@@ -13,12 +13,18 @@ class LikelihoodArgs(ctypes.Structure):
     _fields_ = [('num_params', ctypes.c_int),
                 ('y_inds', ctypes.POINTER(ctypes.c_int)),
                 ('mu', ctypes.c_double),
-                ('inv_cov', ctypes.POINTER(ctypes.c_double))]
+                ('shift', ctypes.c_double),
+                ('inv_cov', ctypes.POINTER(ctypes.c_double)),
+                ('inv_resid_cov', ctypes.POINTER(ctypes.c_double)),
+                ('y_obs', ctypes.POINTER(ctypes.c_double))]
 
 class MapSampler:
-    def __init__(self, kappa_obs, cov):
-        self.kappa_obs = kappa_obs
+    def __init__(self, y_obs, cov, inv_cov, shift, resid_cov=None):
+        self.y_obs = y_obs
         self.cov = cov
+        self.inv_cov = inv_cov
+        self.shift = shift
+        self.resid_cov = resid_cov
 
     def sample(self, num_samps, num_steps, num_burn, epsilon):
         lib_path = os.path.join(os.path.dirname(__file__), '../lib/liblikelihood.so')
@@ -31,16 +37,19 @@ class MapSampler:
                             ctypes.c_int, ctypes.c_double]
         sampler.restype = SampleChain
 
-        # jacobian = np.diag(1/(1 + self.kappa_obs))
-        # self.cov = np.matmul(np.matmul(jacobian, self.cov), jacobian)
-
         var = self.cov[0,0]
         sigma = np.sqrt(var)
-        mu = -0.5 * var
+        mu = -0.5 * var + np.log(self.shift)
 
         epsilon *= sigma
 
-        inv_cov = np.linalg.inv(self.cov)
+        # inv_cov = np.linalg.inv(self.cov)
+        inv_cov = self.inv_cov
+
+        if self.resid_cov is not None:
+            inv_resid_cov = np.linalg.inv(self.resid_cov)
+        else:
+            inv_resid_cov = np.zeros(self.cov.shape, dtype=np.double)
 
         num_params = self.cov.shape[0]
         y_inds = np.arange(num_params, dtype=np.int32)
@@ -50,8 +59,13 @@ class MapSampler:
         args.y_inds = y_inds.ctypes.data_as(ctypes.POINTER(ctypes.c_int))
         args.mu = mu
         args.inv_cov = inv_cov.ravel().ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        args.inv_resid_cov = inv_resid_cov.ravel().ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        args.y_obs = self.y_obs.ravel().ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        args.shift = self.shift
 
-        y0 = mu + np.random.standard_normal(num_params) * sigma
+        y0 = np.random.normal(mu, sigma, num_params)
+        # y0 = self.y_obs.ravel()
+        # y0 = np.random.multivariate_normal(np.array([mu for i in range(num_params)]), self.cov)
         y0_p = y0.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
 
         m = np.ones(num_params, dtype=np.double)
