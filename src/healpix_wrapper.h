@@ -1,0 +1,8 @@
+//
+// Created by pierfied on 10/2/18.
+//
+
+#ifndef LIKELIHOOD_HEALPIX_WRAPPER_H
+#define LIKELIHOOD_HEALPIX_WRAPPER_H
+
+#endif //LIKELIHOOD_HEALPIX_WRAPPER_H

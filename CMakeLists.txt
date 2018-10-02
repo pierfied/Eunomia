@@ -18,8 +18,10 @@ if (OPENMP_FOUND)
 endif ()
 
 file(GLOB SOURCES src/*.h src/*.c)
-add_library(likelihood SHARED ${SOURCES})
+add_library(likelihood SHARED ${SOURCES} src/healpix_wrapper.cpp src/healpix_wrapper.h src/healpix_wrapper.cpp src/healpix_wrapper.h)
+
+include_directories($ENV{CPLUS_INCLUDE_PATH})
 
 get_filename_component(LIB_PATH lib REALPATH)
 find_library(CHRONOS_LIB chronos ${LIB_PATH})
-target_link_libraries(likelihood ${CHRONOS_LIB})
+target_link_libraries(likelihood ${CHRONOS_LIB} healpix_cxx)
