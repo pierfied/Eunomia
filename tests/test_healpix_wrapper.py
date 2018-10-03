@@ -82,16 +82,16 @@ conv2shear = sampler_lib.conv2shear
 conv2shear.argtypes = [ctypes.c_int, ctypes.POINTER(ctypes.c_double), ctypes.c_int]
 conv2shear.restype = Shears
 
-s = conv2shear(npix, map.ctypes.data_as(ctypes.POINTER(ctypes.c_double)), lmax)
+shear2conv = sampler_lib.shear2conv
+shear2conv.argtypes = [ctypes.c_int, Shears, ctypes.c_int]
+shear2conv.restype = ctypes.POINTER(ctypes.c_double)
 
-g1 = np.array([s.gamma1[i] for i in range(npix)])
-g2 = np.array([s.gamma2[i] for i in range(npix)])
+shears = conv2shear(npix, map.ctypes.data_as(ctypes.POINTER(ctypes.c_double)), lmax)
+kappa_ptr = shear2conv(npix, shears, lmax)
 
-print(g1)
-print(g2)
+kappa = np.array([kappa_ptr[i] for i in range(npix)])
+py_kappa = pyshear2conv(pyconv2shear(map))[0]
 
-g1 = pyconv2shear(map)[1,:]
-g2 = pyconv2shear(map)[2,:]
-
-print(g1)
-print(g2)
+print(map)
+print(kappa)
+print(py_kappa)

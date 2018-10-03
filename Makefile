@@ -28,4 +28,4 @@ likelihood:
 	rm -rf likelihood
 
 clean:
-	rm -rf include lib
+	rm -rf include lib chronos likelihood

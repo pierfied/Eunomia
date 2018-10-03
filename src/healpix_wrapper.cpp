@@ -49,6 +49,7 @@ extern "C"{
         Alm<xcomplex<double>> kappa_alms(lmax, lmax);
         kappa_alms.SetToZero();
         arr<double> weights(npix, 1);
+
         map2alm(kappa_map, kappa_alms, weights);
 
         Alm<xcomplex<double>> gamma_Elms(lmax, lmax);
@@ -86,5 +87,58 @@ extern "C"{
         }
 
         return shears;
+    }
+
+    double *shear2conv(int npix, Shears shears, int lmax){
+        int nside = Healpix_Base::npix2nside(npix);
+        int order = Healpix_Base::nside2order(nside);
+
+        arr<double> gamma_arr_1(shears.gamma1, npix);
+        arr<double> gamma_arr_2(shears.gamma2, npix);
+        Healpix_Map<double> gamma_map_T(order, RING);
+        Healpix_Map<double> gamma_map_1(gamma_arr_1, RING);
+        Healpix_Map<double> gamma_map_2(gamma_arr_2, RING);
+        gamma_map_T.fill(0);
+
+        Alm<xcomplex<double>> gamma_Tlms(lmax, lmax);
+        Alm<xcomplex<double>> gamma_Elms(lmax, lmax);
+        Alm<xcomplex<double>> gamma_Blms(lmax, lmax);
+        gamma_Tlms.SetToZero();
+        gamma_Elms.SetToZero();
+        gamma_Blms.SetToZero();
+        arr<double> weights(npix, 1);
+
+        map2alm_pol(gamma_map_T, gamma_map_1, gamma_map_2, gamma_Tlms, gamma_Elms, gamma_Blms, weights);
+
+
+        Alm<xcomplex<double>> kappa_alms(lmax, lmax);
+
+        xcomplex<double> *klm;
+        xcomplex<double> *glm;
+        klm = kappa_alms.mstart(0);
+        *klm = 0;
+        *(klm + 1) = 0;
+        klm = kappa_alms.mstart(1);
+        *(klm + 1) = 0;
+        for (int l = 2; l <= lmax; ++l) {
+            for (int m = 0; m <= l; ++m) {
+                klm = kappa_alms.mstart(m) + l;
+                glm = gamma_Elms.mstart(m) + l;
+
+                *klm = -sqrt((double)l * (l + 1) / ((l + 2) * (l - 1))) * (*glm);
+            }
+        }
+
+        Healpix_Map<double> kappa_map(order, RING);
+
+        alm2map(kappa_alms, kappa_map);
+
+        double *kappa = new double[npix];
+        const double *kappa_arr = kappa_map.Map().begin();
+        for (int i = 0; i < npix; ++i) {
+            kappa[i] = kappa_arr[i];
+        }
+
+        return kappa;
     }
 }
