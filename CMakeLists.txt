@@ -24,4 +24,5 @@ include_directories($ENV{CPLUS_INCLUDE_PATH})
 
 get_filename_component(LIB_PATH lib REALPATH)
 find_library(CHRONOS_LIB chronos ${LIB_PATH})
-target_link_libraries(likelihood ${CHRONOS_LIB} healpix_cxx)
+set(HEALPIX_LIB healpix_cxx cxxsupport sharp fftpack c_utils cfitsio)
+target_link_libraries(likelihood ${CHRONOS_LIB} ${HEALPIX_LIB})

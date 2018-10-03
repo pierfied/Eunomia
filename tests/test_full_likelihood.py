@@ -31,7 +31,7 @@ cl = cl[:len(pixwin)] * (pixwin ** 2)
 shift = 0.053
 
 # Compute the full covariance matrix for the map from Cl's.
-inds = np.arange(1000)
+inds = np.arange(100)
 ln_theory_cov, ang_sep = eunomia.sim_tools.covariance.full_cov_from_cl(cl, nside, inds)
 theory_cov = np.log(1 + ln_theory_cov/(shift ** 2))
 
@@ -56,7 +56,7 @@ y_true = np.log(shift + k_true)
 y_obs = np.log(shift + k_obs)
 
 ms = eunomia.MapSampler(y_obs, theory_cov, inv_cov, shift, resid_cov)
-chain, logp = ms.sample(10000, 10, 100, 1.0)
+chain, logp = ms.sample(1000, 10, 100, 1.0)
 
 plt.plot(range(len(logp)),logp)
 plt.xlabel('Sample #')
