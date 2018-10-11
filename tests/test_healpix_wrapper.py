@@ -86,6 +86,12 @@ shear2conv = sampler_lib.shear2conv
 shear2conv.argtypes = [ctypes.c_int, Shears, ctypes.c_int]
 shear2conv.restype = ctypes.POINTER(ctypes.c_double)
 
+map = np.load('./test_data/kappas_128_512.npy')[:,0].ravel()
+nside = 128
+npix = hp.nside2npix(nside)
+lmax = 3*nside-1
+lmax = 512
+
 shears = conv2shear(npix, map.ctypes.data_as(ctypes.POINTER(ctypes.c_double)), lmax)
 kappa_ptr = shear2conv(npix, shears, lmax)
 
@@ -95,3 +101,21 @@ py_kappa = pyshear2conv(pyconv2shear(map))[0]
 print(map)
 print(kappa)
 print(py_kappa)
+
+map2alm2map = sampler_lib.map2alm2map
+map2alm2map.argtypes = [ctypes.c_int, ctypes.POINTER(ctypes.c_double), ctypes.c_int]
+map2alm2map.restype = ctypes.POINTER(ctypes.c_double)
+
+map_recov_ptr = map2alm2map(npix, map.ctypes.data_as(ctypes.POINTER(ctypes.c_double)), lmax)
+map_recov = np.array([map_recov_ptr[i] for i in range(npix)])
+py_map_recov = hp.alm2map(hp.map2alm(map, lmax), nside, lmax)
+
+print('\n\n\n\n\n\n\n\n')
+
+print(map)
+print(map_recov)
+print(py_map_recov)
+
+import matplotlib.pyplot as plt
+plt.hist((map_recov - map)/map.std())
+plt.show()
