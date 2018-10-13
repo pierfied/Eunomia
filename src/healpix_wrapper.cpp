@@ -13,10 +13,6 @@
 using namespace std;
 
 extern "C"{
-    void extern_test(){
-        cout << "This Worked!\n";
-    }
-
     void test_alm(int lmax, int npix, double *raw_map){
         Alm<xcomplex<double>> alms(lmax, lmax);
         alms.SetToZero();
@@ -65,16 +61,16 @@ extern "C"{
         return kappa_recov;
     }
 
-    Shears conv2shear(int npix, double *raw_map, int lmax){
-        int nside = Healpix_Base::npix2nside(npix);
-        int order = Healpix_Base::nside2order(nside);
+    Shears conv2shear(int kappa_nside, int gamma_nside, double *raw_map, int lmax){
+        int kappa_npix = 12 * kappa_nside * kappa_nside;
+        int gamma_npix = 12 * gamma_nside * gamma_nside;
 
-        arr<double> map_arr(raw_map, npix);
+        arr<double> map_arr(raw_map, kappa_npix);
         Healpix_Map<double> kappa_map(map_arr, RING);
 
         Alm<xcomplex<double>> kappa_alms(lmax, lmax);
         kappa_alms.SetToZero();
-        arr<double> weights(npix, 1);
+        arr<double> weights(2 * kappa_nside, 1);
 
         map2alm_iter(kappa_map, kappa_alms, 0, weights);
 
@@ -96,32 +92,37 @@ extern "C"{
             }
         }
 
-        Healpix_Map<double> gamma_map_T(order, RING);
-        Healpix_Map<double> gamma_map_1(order, RING);
-        Healpix_Map<double> gamma_map_2(order, RING);
+        const nside_dummy dummy;
+        Healpix_Map<double> gamma_high_res_map_T(kappa_nside, RING, dummy);
+        Healpix_Map<double> gamma_high_res_map_1(kappa_nside, RING, dummy);
+        Healpix_Map<double> gamma_high_res_map_2(kappa_nside, RING, dummy);
 
-        alm2map_pol(gamma_Elms, gamma_Elms, gamma_Blms, gamma_map_T, gamma_map_1, gamma_map_2);
+        alm2map_pol(gamma_Elms, gamma_Elms, gamma_Blms, gamma_high_res_map_T, gamma_high_res_map_1, gamma_high_res_map_2);
+
+        Healpix_Map<double> gamma_map_1(gamma_nside, RING, dummy);
+        Healpix_Map<double> gamma_map_2(gamma_nside, RING, dummy);
+        gamma_map_1.Import_degrade(gamma_high_res_map_1);
+        gamma_map_2.Import_degrade(gamma_high_res_map_2);
 
         Shears shears;
-        shears.gamma1 = new double[npix];
-        shears.gamma2 = new double[npix];
-        const double *g1_arr = gamma_map_1.Map().begin();
-        const double *g2_arr = gamma_map_2.Map().begin();
-        for (int i = 0; i < npix; ++i) {
-            shears.gamma1[i] = g1_arr[i];
-            shears.gamma2[i] = g2_arr[i];
+        shears.gamma1 = new double[gamma_npix];
+        shears.gamma2 = new double[gamma_npix];
+        for (int i = 0; i < gamma_npix; ++i) {
+            shears.gamma1[i] = gamma_map_1[i];
+            shears.gamma2[i] = gamma_map_2[i];
         }
 
         return shears;
     }
 
-    double *shear2conv(int npix, Shears shears, int lmax){
-        int nside = Healpix_Base::npix2nside(npix);
-        int order = Healpix_Base::nside2order(nside);
+    double *shear2conv(int gamma_nside, int kappa_nside, Shears shears, int lmax){
+        int gamma_npix = 12 * gamma_nside * gamma_nside;
+        int kappa_npix = 12 * kappa_nside * kappa_nside;
 
-        arr<double> gamma_arr_1(shears.gamma1, npix);
-        arr<double> gamma_arr_2(shears.gamma2, npix);
-        Healpix_Map<double> gamma_map_T(order, RING);
+        const nside_dummy dummy;
+        arr<double> gamma_arr_1(shears.gamma1, gamma_npix);
+        arr<double> gamma_arr_2(shears.gamma2, gamma_npix);
+        Healpix_Map<double> gamma_map_T(gamma_npix, RING, dummy);
         Healpix_Map<double> gamma_map_1(gamma_arr_1, RING);
         Healpix_Map<double> gamma_map_2(gamma_arr_2, RING);
         gamma_map_T.fill(0);
@@ -132,7 +133,7 @@ extern "C"{
         gamma_Tlms.SetToZero();
         gamma_Elms.SetToZero();
         gamma_Blms.SetToZero();
-        arr<double> weights(npix, 1);
+        arr<double> weights(2 * gamma_nside, 1);
 
         map2alm_pol_iter(gamma_map_T, gamma_map_1, gamma_map_2, gamma_Tlms, gamma_Elms, gamma_Blms, 0, weights);
 
@@ -155,14 +156,16 @@ extern "C"{
             }
         }
 
-        Healpix_Map<double> kappa_map(order, RING);
+        Healpix_Map<double> kappa_high_res_map(gamma_npix, RING);
 
-        alm2map(kappa_alms, kappa_map);
+        alm2map(kappa_alms, kappa_high_res_map);
 
-        double *kappa = new double[npix];
-        const double *kappa_arr = kappa_map.Map().begin();
-        for (int i = 0; i < npix; ++i) {
-            kappa[i] = kappa_arr[i];
+        Healpix_Map<double> kappa_map(kappa_nside, RING, dummy);
+        kappa_map.Import_degrade(kappa_high_res_map);
+
+        double *kappa = new double[kappa_npix];
+        for (int i = 0; i < kappa_npix; ++i) {
+            kappa[i] = kappa_map[i];
         }
 
         return kappa;

@@ -15,8 +15,8 @@ extern "C" {
     } Shears;
 
     void test_alm(int lmax, int npix, double *raw_map);
-    Shears conv2shear(int npix, double *raw_map, int lmax);
-    double *shear2conv(int npix, Shears shears, int lmax);
+    Shears conv2shear(int kappa_nside, int gamma_nside, double *raw_map, int lmax);
+    double *shear2conv(int gamma_nside, int kappa_nside, Shears shears, int lmax);
     double *map2alm2map(int npix, double *raw_map, int lmax);
 
 #ifdef __cplusplus

@@ -1,8 +1,8 @@
 all: dirs chronos likelihood
 
 dirs:
-	mkdir include && \
-	mkdir lib
+	mkdir -p include && \
+	mkdir -p lib
 
 chronos:
 	git clone https://github.com/pierfied/Chronos.git && \
