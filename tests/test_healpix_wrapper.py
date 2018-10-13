@@ -74,48 +74,54 @@ def pyshear2conv(gqu):
 
     return ke, kb
 
+double_ptr = ctypes.POINTER(ctypes.c_double)
+
 class Shears(ctypes.Structure):
-    _fields_ = [('gamma1', ctypes.POINTER(ctypes.c_double)),
-                ('gamma2', ctypes.POINTER(ctypes.c_double))]
+    _fields_ = [('gamma1', double_ptr),
+                ('gamma2', double_ptr)]
 
 conv2shear = sampler_lib.conv2shear
-conv2shear.argtypes = [ctypes.c_int, ctypes.POINTER(ctypes.c_double), ctypes.c_int]
+conv2shear.argtypes = [ctypes.c_int, ctypes.c_int, double_ptr, ctypes.c_int]
 conv2shear.restype = Shears
 
 shear2conv = sampler_lib.shear2conv
-shear2conv.argtypes = [ctypes.c_int, Shears, ctypes.c_int]
-shear2conv.restype = ctypes.POINTER(ctypes.c_double)
+shear2conv.argtypes = [ctypes.c_int, ctypes.c_int, Shears, ctypes.c_int]
+shear2conv.restype = double_ptr
 
-map = np.load('./test_data/kappas_128_512.npy')[:,0].ravel()
-nside = 128
-npix = hp.nside2npix(nside)
-lmax = 3*nside-1
-lmax = 512
+map = np.load('./test_data/kappas_64_64.npy')[:,0].ravel()
+in_nside = 64
+out_nside = 16
+in_npix = hp.nside2npix(in_nside)
+out_npix = hp.nside2npix(out_nside)
+lmax = 64
 
-shears = conv2shear(npix, map.ctypes.data_as(ctypes.POINTER(ctypes.c_double)), lmax)
-kappa_ptr = shear2conv(npix, shears, lmax)
+print('Here')
+shears = conv2shear(in_nside, in_nside, map.ctypes.data_as(double_ptr), lmax)
+print('here2')
+kappa_ptr = shear2conv(in_nside, out_nside, shears, lmax)
 
-kappa = np.array([kappa_ptr[i] for i in range(npix)])
+kappa = np.array([kappa_ptr[i] for i in range(out_npix)])
 py_kappa = pyshear2conv(pyconv2shear(map))[0]
 
 print(map)
 print(kappa)
 print(py_kappa)
 
-map2alm2map = sampler_lib.map2alm2map
-map2alm2map.argtypes = [ctypes.c_int, ctypes.POINTER(ctypes.c_double), ctypes.c_int]
-map2alm2map.restype = ctypes.POINTER(ctypes.c_double)
-
-map_recov_ptr = map2alm2map(npix, map.ctypes.data_as(ctypes.POINTER(ctypes.c_double)), lmax)
-map_recov = np.array([map_recov_ptr[i] for i in range(npix)])
-py_map_recov = hp.alm2map(hp.map2alm(map, lmax), nside, lmax)
-
-print('\n\n\n\n\n\n\n\n')
-
-print(map)
-print(map_recov)
-print(py_map_recov)
+# map2alm2map = sampler_lib.map2alm2map
+# map2alm2map.argtypes = [ctypes.c_int, double_ptr, ctypes.c_int]
+# map2alm2map.restype = ctypes.POINTER(ctypes.c_double)
+#
+# map_recov_ptr = map2alm2map(npix, map.ctypes.data_as(double_ptr), lmax)
+# map_recov = np.array([map_recov_ptr[i] for i in range(out_npix)])
+# py_map_recov = hp.alm2map(hp.map2alm(map, lmax), nside, lmax)
+#
+# print('\n\n\n\n\n\n\n\n')
+#
+# print(map)
+# print(map_recov)
+# print(py_map_recov)
 
 import matplotlib.pyplot as plt
-plt.hist((map_recov - map)/map.std())
+mapu = hp.ud_grade(map, out_nside)
+plt.hist((kappa - mapu)/mapu.std(), 20)
 plt.show()

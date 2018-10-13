@@ -61,16 +61,16 @@ extern "C"{
         return kappa_recov;
     }
 
-    Shears conv2shear(int kappa_nside, int gamma_nside, double *raw_map, int lmax){
-        int kappa_npix = 12 * kappa_nside * kappa_nside;
-        int gamma_npix = 12 * gamma_nside * gamma_nside;
+    Shears conv2shear(int in_nside, int out_nside, double *raw_map, int lmax){
+        int in_npix = 12 * in_nside * in_nside;
+        int out_npix = 12 * out_nside * out_nside;
 
-        arr<double> map_arr(raw_map, kappa_npix);
+        arr<double> map_arr(raw_map, in_npix);
         Healpix_Map<double> kappa_map(map_arr, RING);
 
         Alm<xcomplex<double>> kappa_alms(lmax, lmax);
         kappa_alms.SetToZero();
-        arr<double> weights(2 * kappa_nside, 1);
+        arr<double> weights(2 * in_nside, 1);
 
         map2alm_iter(kappa_map, kappa_alms, 0, weights);
 
@@ -93,21 +93,29 @@ extern "C"{
         }
 
         const nside_dummy dummy;
-        Healpix_Map<double> gamma_high_res_map_T(kappa_nside, RING, dummy);
-        Healpix_Map<double> gamma_high_res_map_1(kappa_nside, RING, dummy);
-        Healpix_Map<double> gamma_high_res_map_2(kappa_nside, RING, dummy);
+        Healpix_Map<double> gamma_in_res_map_T(in_nside, RING, dummy);
+        Healpix_Map<double> gamma_in_res_map_1(in_nside, RING, dummy);
+        Healpix_Map<double> gamma_in_res_map_2(in_nside, RING, dummy);
 
-        alm2map_pol(gamma_Elms, gamma_Elms, gamma_Blms, gamma_high_res_map_T, gamma_high_res_map_1, gamma_high_res_map_2);
+        alm2map_pol(gamma_Elms, gamma_Elms, gamma_Blms, gamma_in_res_map_T, gamma_in_res_map_1, gamma_in_res_map_2);
 
-        Healpix_Map<double> gamma_map_1(gamma_nside, RING, dummy);
-        Healpix_Map<double> gamma_map_2(gamma_nside, RING, dummy);
-        gamma_map_1.Import_degrade(gamma_high_res_map_1);
-        gamma_map_2.Import_degrade(gamma_high_res_map_2);
+        Healpix_Map<double> gamma_map_1(out_nside, RING, dummy);
+        Healpix_Map<double> gamma_map_2(out_nside, RING, dummy);
+        if(out_nside < in_nside) {
+            gamma_map_1.Import_degrade(gamma_in_res_map_1);
+            gamma_map_2.Import_degrade(gamma_in_res_map_2);
+        }else if(out_nside > in_nside) {
+            gamma_map_1.Import_upgrade(gamma_in_res_map_1);
+            gamma_map_2.Import_upgrade(gamma_in_res_map_2);
+        }else {
+            gamma_map_1 = gamma_in_res_map_1;
+            gamma_map_2 = gamma_in_res_map_2;
+        }
 
         Shears shears;
-        shears.gamma1 = new double[gamma_npix];
-        shears.gamma2 = new double[gamma_npix];
-        for (int i = 0; i < gamma_npix; ++i) {
+        shears.gamma1 = new double[out_npix];
+        shears.gamma2 = new double[out_npix];
+        for (int i = 0; i < out_npix; ++i) {
             shears.gamma1[i] = gamma_map_1[i];
             shears.gamma2[i] = gamma_map_2[i];
         }
@@ -115,14 +123,14 @@ extern "C"{
         return shears;
     }
 
-    double *shear2conv(int gamma_nside, int kappa_nside, Shears shears, int lmax){
-        int gamma_npix = 12 * gamma_nside * gamma_nside;
-        int kappa_npix = 12 * kappa_nside * kappa_nside;
+    double *shear2conv(int in_nside, int out_nside, Shears shears, int lmax){
+        int in_npix = 12 * in_nside * in_nside;
+        int out_npix = 12 * out_nside * out_nside;
 
         const nside_dummy dummy;
-        arr<double> gamma_arr_1(shears.gamma1, gamma_npix);
-        arr<double> gamma_arr_2(shears.gamma2, gamma_npix);
-        Healpix_Map<double> gamma_map_T(gamma_npix, RING, dummy);
+        arr<double> gamma_arr_1(shears.gamma1, in_npix);
+        arr<double> gamma_arr_2(shears.gamma2, in_npix);
+        Healpix_Map<double> gamma_map_T(in_nside, RING, dummy);
         Healpix_Map<double> gamma_map_1(gamma_arr_1, RING);
         Healpix_Map<double> gamma_map_2(gamma_arr_2, RING);
         gamma_map_T.fill(0);
@@ -133,7 +141,7 @@ extern "C"{
         gamma_Tlms.SetToZero();
         gamma_Elms.SetToZero();
         gamma_Blms.SetToZero();
-        arr<double> weights(2 * gamma_nside, 1);
+        arr<double> weights(2 * in_nside, 1);
 
         map2alm_pol_iter(gamma_map_T, gamma_map_1, gamma_map_2, gamma_Tlms, gamma_Elms, gamma_Blms, 0, weights);
 
@@ -156,15 +164,21 @@ extern "C"{
             }
         }
 
-        Healpix_Map<double> kappa_high_res_map(gamma_npix, RING);
+        Healpix_Map<double> kappa_in_res_map(in_nside, RING, dummy);
 
-        alm2map(kappa_alms, kappa_high_res_map);
+        alm2map(kappa_alms, kappa_in_res_map);
 
-        Healpix_Map<double> kappa_map(kappa_nside, RING, dummy);
-        kappa_map.Import_degrade(kappa_high_res_map);
+        Healpix_Map<double> kappa_map(out_nside, RING, dummy);
+        if(out_nside < in_nside) {
+            kappa_map.Import_degrade(kappa_in_res_map);
+        }else if(out_nside > in_nside){
+            kappa_map.Import_upgrade(kappa_in_res_map);
+        } else{
+            kappa_map = kappa_in_res_map;
+        }
 
-        double *kappa = new double[kappa_npix];
-        for (int i = 0; i < kappa_npix; ++i) {
+        double *kappa = new double[out_npix];
+        for (int i = 0; i < out_npix; ++i) {
             kappa[i] = kappa_map[i];
         }
 
