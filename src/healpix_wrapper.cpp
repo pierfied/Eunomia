@@ -13,54 +13,6 @@
 using namespace std;
 
 extern "C"{
-    void test_alm(int lmax, int npix, double *raw_map){
-        Alm<xcomplex<double>> alms(lmax, lmax);
-        alms.SetToZero();
-
-        arr<double> map_arr(raw_map, npix);
-        Healpix_Map<double> map(map_arr, RING);
-
-        arr<double> weights(npix, 1);
-        map2alm(map, alms, weights);
-
-        xcomplex<double>* neg_ptr = alms.mstart(0) + lmax;
-        xcomplex<double>* zero_ptr = alms.mstart(1) + 1;
-        xcomplex<double>* pos_ptr = alms.mstart(1);
-        cout << neg_ptr << '\n';
-        cout << *neg_ptr << '\n';
-        cout << zero_ptr << '\n';
-        cout << *zero_ptr << '\n';
-        cout << pos_ptr << '\n';
-        cout << *pos_ptr << '\n';
-        cout << "\n\n" << zero_ptr + lmax << "\t\t" << pos_ptr << "\n";
-    }
-
-    double *map2alm2map(int npix, double *raw_map, int lmax){
-        int nside = Healpix_Base::npix2nside(npix);
-        int order = Healpix_Base::nside2order(nside);
-
-        arr<double> map_arr(raw_map, npix);
-        Healpix_Map<double> kappa_map(map_arr, RING);
-
-        Alm<xcomplex<double>> kappa_alms(lmax, lmax);
-        kappa_alms.SetToZero();
-        arr<double> weights(npix, 1);
-
-        map2alm_iter(kappa_map, kappa_alms, 0, weights);
-
-        Healpix_Map<double> kappa_map_recov(order, RING);
-
-        alm2map(kappa_alms, kappa_map_recov);
-
-        double *kappa_recov = new double[npix];
-        const double *kappa_recov_arr = kappa_map_recov.Map().begin();
-        for (int i = 0; i < npix; ++i) {
-            kappa_recov[i] = kappa_map_recov[i];
-        }
-
-        return kappa_recov;
-    }
-
     Shears conv2shear(int in_nside, int out_nside, double *raw_map, int lmax){
         int in_npix = 12 * in_nside * in_nside;
         int out_npix = 12 * out_nside * out_nside;
@@ -69,15 +21,12 @@ extern "C"{
         Healpix_Map<double> kappa_map(map_arr, RING);
 
         Alm<xcomplex<double>> kappa_alms(lmax, lmax);
-        kappa_alms.SetToZero();
         arr<double> weights(2 * in_nside, 1);
 
         map2alm_iter(kappa_map, kappa_alms, 0, weights);
 
         Alm<xcomplex<double>> gamma_Elms(lmax, lmax);
         Alm<xcomplex<double>> gamma_Blms(lmax, lmax);
-        gamma_Elms.SetToZero();
-        gamma_Blms.SetToZero();
 
         xcomplex<double> *klm;
         xcomplex<double> *glm;
@@ -138,13 +87,9 @@ extern "C"{
         Alm<xcomplex<double>> gamma_Tlms(lmax, lmax);
         Alm<xcomplex<double>> gamma_Elms(lmax, lmax);
         Alm<xcomplex<double>> gamma_Blms(lmax, lmax);
-        gamma_Tlms.SetToZero();
-        gamma_Elms.SetToZero();
-        gamma_Blms.SetToZero();
         arr<double> weights(2 * in_nside, 1);
 
         map2alm_pol_iter(gamma_map_T, gamma_map_1, gamma_map_2, gamma_Tlms, gamma_Elms, gamma_Blms, 0, weights);
-
 
         Alm<xcomplex<double>> kappa_alms(lmax, lmax);
 

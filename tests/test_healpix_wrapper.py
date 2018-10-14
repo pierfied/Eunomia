@@ -2,25 +2,10 @@ import numpy as np
 import healpy as hp
 import ctypes
 import os
+import matplotlib.pyplot as plt
 
 lib_path = os.path.join(os.path.dirname(__file__), '../lib/liblikelihood.so')
 sampler_lib = ctypes.cdll.LoadLibrary(lib_path)
-
-test_alm = sampler_lib.test_alm
-test_alm.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.c_double)]
-
-nside = 16
-lmax = nside
-npix = hp.nside2npix(nside)
-np.random.seed(0)
-map = np.random.standard_normal(npix)
-test_alm(lmax, npix, map.ctypes.data_as(ctypes.POINTER(ctypes.c_double)))
-
-l, m = hp.Alm.getlm(lmax)
-alm = hp.map2alm(map, lmax)
-
-print(alm[(l == 16) & (m == 0)])
-print(alm[(l == 1) & (m == 1)])
 
 def pyconv2shear(kappa):
     nside = hp.npix2nside(len(kappa))
@@ -95,33 +80,27 @@ in_npix = hp.nside2npix(in_nside)
 out_npix = hp.nside2npix(out_nside)
 lmax = 64
 
-print('Here')
 shears = conv2shear(in_nside, in_nside, map.ctypes.data_as(double_ptr), lmax)
-print('here2')
 kappa_ptr = shear2conv(in_nside, out_nside, shears, lmax)
 
 kappa = np.array([kappa_ptr[i] for i in range(out_npix)])
-py_kappa = pyshear2conv(pyconv2shear(map))[0]
+py_kappa = hp.ud_grade(pyshear2conv(pyconv2shear(map))[0], out_nside)
 
-print(map)
+mapu = hp.ud_grade(map, out_nside)
+
+print(mapu)
 print(kappa)
 print(py_kappa)
 
-# map2alm2map = sampler_lib.map2alm2map
-# map2alm2map.argtypes = [ctypes.c_int, double_ptr, ctypes.c_int]
-# map2alm2map.restype = ctypes.POINTER(ctypes.c_double)
-#
-# map_recov_ptr = map2alm2map(npix, map.ctypes.data_as(double_ptr), lmax)
-# map_recov = np.array([map_recov_ptr[i] for i in range(out_npix)])
-# py_map_recov = hp.alm2map(hp.map2alm(map, lmax), nside, lmax)
-#
-# print('\n\n\n\n\n\n\n\n')
-#
-# print(map)
-# print(map_recov)
-# print(py_map_recov)
+plt.figure(1)
+bins = np.linspace(-0.05,0.05,20)
+plt.hist((kappa - mapu)/mapu.std(), bins, alpha=0.75)
+plt.hist((py_kappa - mapu)/mapu.std(), bins, alpha=0.75)
 
-import matplotlib.pyplot as plt
-mapu = hp.ud_grade(map, out_nside)
-plt.hist((kappa - mapu)/mapu.std(), 20)
+plt.figure(2)
+hp.mollview((kappa - mapu)/mapu.std())
+
+plt.figure(3)
+hp.mollview((py_kappa - mapu)/mapu.std())
+
 plt.show()
