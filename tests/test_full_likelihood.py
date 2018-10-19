@@ -17,22 +17,26 @@ if not os.path.exists(fig_dir):
 if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 
-# Determine nside and lmax.
-nside = 128
-npix = hp.nside2npix(nside)
-lmax = 4 * nside
+kappa_nside = 16
+gamma_nside = 4
+kappa_npix = hp.nside2npix(kappa_nside)
+gamma_npix = hp.nside2npix(gamma_nside)
+lmax = 16
 
 # Load in the harmonic covariance values (Cl).
 cl = np.array(pd.read_csv(data_dir + 'full_cl.dat', delim_whitespace=True, header=None))[:, 1]
 
-pixwin = hp.pixwin(nside)
+pixwin = hp.pixwin(kappa_nside)
 cl = cl[:len(pixwin)] * (pixwin ** 2)
 
 shift = 0.053
 
 # Compute the full covariance matrix for the map from Cl's.
-inds = np.arange(100)
-ln_theory_cov, ang_sep = eunomia.sim_tools.covariance.full_cov_from_cl(cl, nside, inds)
+gamma_inds = np.arange(gamma_npix)
+kappa_inds = np.arange(kappa_npix)
+gamma_mask = gamma_inds > 0
+kappa_mask = hp.ud_grade(gamma_mask, kappa_nside)
+ln_theory_cov, ang_sep = eunomia.sim_tools.covariance.full_cov_from_cl(cl, kappa_nside, kappa_inds)
 theory_cov = np.log(1 + ln_theory_cov/(shift ** 2))
 
 # mask = ang_sep > 0.03
@@ -40,17 +44,94 @@ theory_cov = np.log(1 + ln_theory_cov/(shift ** 2))
 inv_cov = np.linalg.inv(theory_cov)
 # inv_cov[mask] = 0
 
-kappas = np.load(data_dir + 'kappas_128_512.npy')
-kappas_noise = np.load(data_dir + 'kappas_noise_128_512.npy')
+kappas = np.load(data_dir + 'kappas_{0}_{1}.npy'.format(kappa_nside, lmax))[:,0]
 
-# resid_var = np.var(np.log(1 + kappas_noise) - np.log(1 + kappas))
-# resid_var = np.var(kappas_noise - kappas)
-resid_var = np.var(np.log(shift + kappas_noise) - np.log(shift + kappas))
+def pyconv2shear(kappa, nside, lmax):
+    nside = hp.npix2nside(len(kappa))
 
-resid_cov = np.eye(len(inds)) * resid_var
+    k = kappa
+    ke = kappa
+    kb = np.zeros(len(kappa))
 
-k_true = kappas[inds, 0]
-k_obs = kappas_noise[inds, 0]
+    keb = [k, ke, kb]
+
+    klm, kelm, kblm = hp.map2alm(keb, pol=False, lmax=lmax)
+
+    l, _ = hp.Alm.getlm(hp.Alm.getlmax(len(klm)))
+
+    gelm = np.zeros(len(l), dtype=np.complex128)
+    gblm = np.zeros(len(l), dtype=np.complex128)
+
+    gelm = -np.sqrt((l + 2) * (l - 1) / (l * (l + 1))) * kelm
+    gblm = -np.sqrt((l + 2) * (l - 1) / (l * (l + 1))) * kblm
+    gelm[l == 0] = 0
+    gblm[l == 0] = 0
+
+    glm = gelm + 1j * gblm
+    geblm = [glm, gelm, gblm]
+
+    gqu = np.array(hp.alm2map(geblm, nside=nside, lmax=lmax))
+
+    return gqu
+
+def pyshear2conv(gqu, nside, lmax):
+    nside = hp.npix2nside(gqu.shape[1])
+
+    glm, gelm, gblm = hp.map2alm(gqu, lmax=lmax)
+
+    l, _ = hp.Alm.getlm(hp.Alm.getlmax(len(glm)))
+
+    kelm = np.zeros(len(l), dtype=np.complex128)
+    kblm = np.zeros(len(l), dtype=np.complex128)
+
+    kelm = -np.sqrt(l * (l + 1) / ((l + 2) * (l - 1))) * gelm
+    kblm = -np.sqrt(l * (l + 1) / ((l + 2) * (l - 1))) * gblm
+    kelm[l == 0] = 0
+    kblm[l == 0] = 0
+    kelm[l == 1] = 0
+    kblm[l == 1] = 0
+
+    klm = kelm + 1j * kblm
+    keblm = [klm, kelm, kblm]
+
+    k, ke, kb = hp.alm2map(keblm, nside=nside, pol=False, lmax=lmax)
+
+    return ke, kb
+
+high_res_shears = pyconv2shear(kappas, kappa_nside, lmax)
+high_res_shears_plus_noise = high_res_shears + np.random.standard_normal(high_res_shears.shape) * high_res_shears.std() * 3
+
+shears = hp.ud_grade(high_res_shears, gamma_nside)
+shears_plus_noise = hp.ud_grade(high_res_shears_plus_noise, gamma_nside)
+
+low_res_kappas = hp.ud_grade(kappas, gamma_nside)
+recov_kappas = hp.ud_grade(pyshear2conv(hp.ud_grade(shears, kappa_nside), kappa_nside, None)[0], gamma_nside)
+
+plt.hist((recov_kappas - low_res_kappas)/low_res_kappas.std(),20)
+plt.show()
+exit(0)
+
+
+
+
+
+kappas_plus_noise = pyshear2conv(high_res_shears_plus_noise, kappa_nside, lmax)[0]
+kappas_plus_noise = hp.ud_grade(kappas_plus_noise, gamma_nside)
+kappa_d = hp.ud_grade(kappas, gamma_nside)
+
+kappa_noise_d = kappas_plus_noise - kappa_d
+kappa_noise_var =  kappa_nside/gamma_nside * kappa_noise_d.var()
+
+high_res_shears = hp.ud_grade(high_res_shears, gamma_nside)
+high_res_shears_plus_noise = hp.ud_grade(high_res_shears_plus_noise, gamma_nside)
+
+shear_noise = high_res_shears_plus_noise - high_res_shears
+shear_noise_var = shear_noise.var()
+
+resid_cov = np.eye(len(inds)) * kappa_noise_var
+
+k_true = kappas
+k_obs = hp.ud_grade(hp.ud_grade(kappas_plus_noise, gamma_nside), kappa_nside)
 
 y_true = np.log(shift + k_true)
 y_obs = np.log(shift + k_obs)

@@ -16,7 +16,15 @@ class LikelihoodArgs(ctypes.Structure):
                 ('shift', ctypes.c_double),
                 ('inv_cov', ctypes.POINTER(ctypes.c_double)),
                 ('inv_resid_cov', ctypes.POINTER(ctypes.c_double)),
-                ('y_obs', ctypes.POINTER(ctypes.c_double))]
+                ('shape_noise_1', ctypes.POINTER(ctypes.c_double)),
+                ('shape_noise_2', ctypes.POINTER(ctypes.c_double)),
+                ('y_obs', ctypes.POINTER(ctypes.c_double)),
+                ('kappa_obs', ctypes.POINTER(ctypes.c_double)),
+                ('gamma1_obs', ctypes.POINTER(ctypes.c_double)),
+                ('gamma2_obs', ctypes.POINTER(ctypes.c_double)),
+                ('kappa_nside', ctypes.c_int),
+                ('gamma_nside', ctypes.c_int),
+                ('lmax', ctypes.c_int)]
 
 class MapSampler:
     def __init__(self, y_obs, cov, inv_cov, shift, resid_cov=None):

@@ -14,7 +14,15 @@ typedef struct {
     double shift;
     double *inv_cov;
     double *inv_resid_cov;
+    double *shape_noise_1;
+    double *shape_noise_2;
     double *y_obs;
+    double *kappa_obs;
+    double *gamma1_obs;
+    double *gamma2_obs;
+    int kappa_nside;
+    int gamma_nside;
+    int lmax;
 } LikelihoodArgs;
 
 SampleChain sample_map(double *y0, double *m, LikelihoodArgs args,

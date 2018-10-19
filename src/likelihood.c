@@ -3,6 +3,7 @@
 //
 
 #include "likelihood.h"
+#include "healpix_wrapper.h"
 #include "../include/hmc.h"
 #include <math.h>
 #include <stdlib.h>
@@ -35,49 +36,87 @@ Hamiltonian map_likelihood(double *y, void *args_ptr) {
     double shift = args->shift;
     double *inv_cov = args->inv_cov;
     double *inv_resid_cov = args->inv_resid_cov;
+    int num_params = args->num_params;
+    int kappa_nside = args->kappa_nside;
+    int gamma_nside = args->gamma_nside;
+    int lmax = args->lmax;
+
+    int kappa_npix = 12 * kappa_nside * kappa_nside;
+    int gamma_npix = 12 * gamma_nside * gamma_nside;
 
     int *y_inds = args->y_inds;
 
     double *y_obs = args->y_obs;
+    double *kappa_obs = args->kappa_obs;
 
-    int num_params = args->num_params;
-    double *grad = malloc(sizeof(double) * num_params);
+    double *kappa = malloc(sizeof(double) * kappa_npix);
+#pragma omp parallel for
+    for (int i = 0; i < kappa_npix; ++i) {
+        kappa[i] = exp(y_inds[i]) - shift;
+    }
+
+    double *grad = malloc(sizeof(double) * kappa_npix);
+
+    double *gamma1_obs = args->gamma1_obs;
+    double *gamma2_obs = args->gamma2_obs;
+    double *shape_noise_1 = args->shape_noise_1;
+    double *shape_noise_2 = args->shape_noise_2;
+
+    Shears shears = conv2shear(kappa_nside, gamma_nside, kappa, lmax);
+    double *gamma1 = shears.gamma1;
+    double *gamma2 = shears.gamma2;
 
     double normal_contrib = 0;
 #pragma omp parallel for
-    for (int i = 0; i < num_params; i++) {
-        // Check that this is a high occupancy voxel.
-        if (y_inds[i] < 0) continue;
+    for (int i = 0; i < kappa_npix; i++) {
         int y1 = y_inds[i];
 
         // Loop over neighbors.
         double neighbor_contrib_theory = 0;
         double neighbor_contrib_resid = 0;
-        for (int j = 0; j < num_params; j++) {
-            if (y_inds[j] < 0) continue;
+        for (int j = 0; j < kappa_npix; j++) {
             int y2 = y_inds[j];
 
             // Compute the neighbor contribution.
-            int ic_ind = num_params * i + j;
-            neighbor_contrib_theory += inv_cov[ic_ind] * (y[y2] - mu);
-//            neighbor_contrib_resid += inv_resid_cov[ic_ind] * (exp(y[y2]) - exp(y_obs[y2]));
+            int ic_ind = kappa_npix * i + j;
+            neighbor_contrib_theory += inv_cov[ic_ind] * (y[j] - mu);
 
-//            neighbor_contrib_theory += inv_cov[ic_ind] * (log(shift + y[y2]) - mu);
-            neighbor_contrib_resid += inv_resid_cov[ic_ind] * (y[y2] - y_obs[y2]);
+            if(y1 > 0 && y2 > 0){
+                neighbor_contrib_resid += inv_resid_cov[ic_ind] * (kappa[j] - kappa_obs[j]);
+            }
+        }
 
-//            printf("\t%f\t%f\t%f\n", inv_resid_cov[ic_ind] * (y[y2] - y_obs[y2]), y[y2], y_obs[y2]);
+        double shear_contrib = 0;
+        if(y1 > 0){
+            double delta_1 = gamma1[i] - gamma1_obs[i];
+            double delta_2 = gamma2[i] - gamma1_obs[i];
+
+            shear_contrib += delta_1 * delta_1 / shape_noise_1[i] + delta_2 * delta_2 / shape_noise_2[i];
         }
 
 #pragma omp critical
         {
             // Compute the total contribution of this voxel to the normal.
-//            normal_contrib += (log(shift + y[y1]) - mu) * neighbor_contrib_theory + (y[y1] - y_obs[y1]) * neighbor_contrib_resid;
-
-            normal_contrib += (y[y1] - mu) * neighbor_contrib_theory + (y[y1] - y_obs[y1]) * neighbor_contrib_resid;
+//            normal_contrib += (y[i] - mu) * neighbor_contrib_theory + (kappa[i] - kappa_obs[i]) * neighbor_contrib_resid;
+            normal_contrib += (y[i] - mu) * neighbor_contrib_theory + shear_contrib;
         }
 
         // Compute the gradient for the voxel.
-        grad[y1] = -neighbor_contrib_theory - neighbor_contrib_resid;
+        grad[i] = -neighbor_contrib_theory - (kappa[i] + shift) * neighbor_contrib_resid;
+    }
+
+#pragma omp parallel for
+    for (int i = 0; i < gamma_npix; ++i) {
+        if(y_inds[i] > 0){
+            double delta_1 = gamma1[i] - gamma1_obs[i];
+            double delta_2 = gamma2[i] - gamma1_obs[i];
+            double shear_contrib = delta_1 * delta_1 / shape_noise_1[i] + delta_2 * delta_2 / shape_noise_2[i];
+
+#pragma omp critical
+            {
+                normal_contrib += shear_contrib;
+            }
+        }
     }
     normal_contrib *= -0.5;
 

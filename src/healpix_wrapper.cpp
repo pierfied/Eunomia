@@ -9,6 +9,7 @@
 #include <datatypes.h>
 #include <iostream>
 #include <arr.h>
+#include <omp.h>
 
 using namespace std;
 
@@ -32,6 +33,7 @@ extern "C"{
         xcomplex<double> *glm;
         glm = gamma_Elms.mstart(0);
         *glm = 0;
+#pragma omp parallel for
         for (int l = 1; l <= lmax; ++l) {
             for (int m = 0; m <= l; ++m) {
                 klm = kappa_alms.mstart(m) + l;
@@ -64,6 +66,7 @@ extern "C"{
         Shears shears;
         shears.gamma1 = new double[out_npix];
         shears.gamma2 = new double[out_npix];
+#pragma omp parallel for
         for (int i = 0; i < out_npix; ++i) {
             shears.gamma1[i] = gamma_map_1[i];
             shears.gamma2[i] = gamma_map_2[i];
@@ -100,6 +103,7 @@ extern "C"{
         *(klm + 1) = 0;
         klm = kappa_alms.mstart(1);
         *(klm + 1) = 0;
+#pragma omp parallel for
         for (int l = 2; l <= lmax; ++l) {
             for (int m = 0; m <= l; ++m) {
                 klm = kappa_alms.mstart(m) + l;
@@ -123,6 +127,7 @@ extern "C"{
         }
 
         double *kappa = new double[out_npix];
+#pragma omp parallel for
         for (int i = 0; i < out_npix; ++i) {
             kappa[i] = kappa_map[i];
         }
