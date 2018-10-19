@@ -14,8 +14,8 @@ extern "C" {
         double *gamma2;
     } Shears;
 
-    Shears conv2shear(int in_nside, int out_nside, double *raw_map, int lmax);
-    double *shear2conv(int in_nside, int out_nside, Shears shears, int lmax);
+    Shears conv2shear(int nside, double *raw_map, int lmax);
+    double *shear2conv(int nside, Shears shears, int lmax);
 
 #ifdef __cplusplus
 } //end extern "C"

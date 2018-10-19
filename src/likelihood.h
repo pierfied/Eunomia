@@ -18,10 +18,9 @@ typedef struct {
     double *shape_noise_2;
     double *y_obs;
     double *kappa_obs;
-    double *gamma1_obs;
-    double *gamma2_obs;
-    int kappa_nside;
-    int gamma_nside;
+    double *gamma_1_obs;
+    double *gamma_2_obs;
+    int nside;
     int lmax;
 } LikelihoodArgs;
 

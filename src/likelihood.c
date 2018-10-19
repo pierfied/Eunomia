@@ -37,48 +37,45 @@ Hamiltonian map_likelihood(double *y, void *args_ptr) {
     double *inv_cov = args->inv_cov;
     double *inv_resid_cov = args->inv_resid_cov;
     int num_params = args->num_params;
-    int kappa_nside = args->kappa_nside;
-    int gamma_nside = args->gamma_nside;
+    int nside = args->nside;
     int lmax = args->lmax;
-
-    int kappa_npix = 12 * kappa_nside * kappa_nside;
-    int gamma_npix = 12 * gamma_nside * gamma_nside;
+    int npix = 12 * nside * nside;
 
     int *y_inds = args->y_inds;
 
     double *y_obs = args->y_obs;
     double *kappa_obs = args->kappa_obs;
 
-    double *kappa = malloc(sizeof(double) * kappa_npix);
+    double *kappa = malloc(sizeof(double) * npix);
 #pragma omp parallel for
-    for (int i = 0; i < kappa_npix; ++i) {
-        kappa[i] = exp(y_inds[i]) - shift;
+    for (int i = 0; i < npix; ++i) {
+        kappa[i] = exp(y[i]) - shift;
     }
 
-    double *grad = malloc(sizeof(double) * kappa_npix);
+    double *grad = malloc(sizeof(double) * npix);
 
-    double *gamma1_obs = args->gamma1_obs;
-    double *gamma2_obs = args->gamma2_obs;
+    double *gamma1_obs = args->gamma_1_obs;
+    double *gamma2_obs = args->gamma_2_obs;
     double *shape_noise_1 = args->shape_noise_1;
     double *shape_noise_2 = args->shape_noise_2;
 
-    Shears shears = conv2shear(kappa_nside, gamma_nside, kappa, lmax);
+    Shears shears = conv2shear(nside, kappa, lmax);
     double *gamma1 = shears.gamma1;
     double *gamma2 = shears.gamma2;
 
     double normal_contrib = 0;
 #pragma omp parallel for
-    for (int i = 0; i < kappa_npix; i++) {
+    for (int i = 0; i < npix; i++) {
         int y1 = y_inds[i];
 
         // Loop over neighbors.
         double neighbor_contrib_theory = 0;
         double neighbor_contrib_resid = 0;
-        for (int j = 0; j < kappa_npix; j++) {
+        for (int j = 0; j < npix; j++) {
             int y2 = y_inds[j];
 
             // Compute the neighbor contribution.
-            int ic_ind = kappa_npix * i + j;
+            int ic_ind = npix * i + j;
             neighbor_contrib_theory += inv_cov[ic_ind] * (y[j] - mu);
 
             if(y1 > 0 && y2 > 0){
@@ -89,9 +86,9 @@ Hamiltonian map_likelihood(double *y, void *args_ptr) {
         double shear_contrib = 0;
         if(y1 > 0){
             double delta_1 = gamma1[i] - gamma1_obs[i];
-            double delta_2 = gamma2[i] - gamma1_obs[i];
+            double delta_2 = gamma2[i] - gamma2_obs[i];
 
-            shear_contrib += delta_1 * delta_1 / shape_noise_1[i] + delta_2 * delta_2 / shape_noise_2[i];
+            shear_contrib = delta_1 * delta_1 / shape_noise_1[i] + delta_2 * delta_2 / shape_noise_2[i];
         }
 
 #pragma omp critical
@@ -105,19 +102,19 @@ Hamiltonian map_likelihood(double *y, void *args_ptr) {
         grad[i] = -neighbor_contrib_theory - (kappa[i] + shift) * neighbor_contrib_resid;
     }
 
-#pragma omp parallel for
-    for (int i = 0; i < gamma_npix; ++i) {
-        if(y_inds[i] > 0){
-            double delta_1 = gamma1[i] - gamma1_obs[i];
-            double delta_2 = gamma2[i] - gamma1_obs[i];
-            double shear_contrib = delta_1 * delta_1 / shape_noise_1[i] + delta_2 * delta_2 / shape_noise_2[i];
-
-#pragma omp critical
-            {
-                normal_contrib += shear_contrib;
-            }
-        }
-    }
+//#pragma omp parallel for
+//    for (int i = 0; i < npix; ++i) {
+//        if(y_inds[i] > 0){
+//            double delta_1 = gamma1[i] - gamma1_obs[i];
+//            double delta_2 = gamma2[i] - gamma2_obs[i];
+//            double shear_contrib = delta_1 * delta_1 / shape_noise_1[i] + delta_2 * delta_2 / shape_noise_2[i];
+//
+//#pragma omp critical
+//            {
+//                normal_contrib += shear_contrib;
+//            }
+//        }
+//    }
     normal_contrib *= -0.5;
 
     Hamiltonian likelihood;

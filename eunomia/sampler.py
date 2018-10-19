@@ -20,19 +20,25 @@ class LikelihoodArgs(ctypes.Structure):
                 ('shape_noise_2', ctypes.POINTER(ctypes.c_double)),
                 ('y_obs', ctypes.POINTER(ctypes.c_double)),
                 ('kappa_obs', ctypes.POINTER(ctypes.c_double)),
-                ('gamma1_obs', ctypes.POINTER(ctypes.c_double)),
-                ('gamma2_obs', ctypes.POINTER(ctypes.c_double)),
-                ('kappa_nside', ctypes.c_int),
-                ('gamma_nside', ctypes.c_int),
+                ('gamma_1_obs', ctypes.POINTER(ctypes.c_double)),
+                ('gamma_2_obs', ctypes.POINTER(ctypes.c_double)),
+                ('nside', ctypes.c_int),
                 ('lmax', ctypes.c_int)]
 
 class MapSampler:
-    def __init__(self, y_obs, cov, inv_cov, shift, resid_cov=None):
-        self.y_obs = y_obs
+    def __init__(self, gamma_1_obs, gamma_2_obs, kappa_obs, cov, inv_cov, shift, inds, nside, lmax, shape_noise_1, shape_noise_2, resid_cov=None):
+        self.gamma_1_obs = gamma_1_obs
+        self.gamma_2_obs = gamma_2_obs
+        self.kappa_obs = kappa_obs
         self.cov = cov
         self.inv_cov = inv_cov
         self.shift = shift
+        self.inds = inds
+        self.nside = nside
+        self.lmax = lmax
         self.resid_cov = resid_cov
+        self.shape_noise_1 = shape_noise_1
+        self.shape_noise_2 = shape_noise_2
 
     def sample(self, num_samps, num_steps, num_burn, epsilon):
         lib_path = os.path.join(os.path.dirname(__file__), '../lib/liblikelihood.so')
@@ -49,7 +55,7 @@ class MapSampler:
         sigma = np.sqrt(var)
         mu = -0.5 * var + np.log(self.shift)
 
-        epsilon *= sigma
+        # epsilon *= sigma
 
         # inv_cov = np.linalg.inv(self.cov)
         inv_cov = self.inv_cov
@@ -60,16 +66,32 @@ class MapSampler:
             inv_resid_cov = np.zeros(self.cov.shape, dtype=np.double)
 
         num_params = self.cov.shape[0]
-        y_inds = np.arange(num_params, dtype=np.int32)
+        y_inds = self.inds.ravel()
+        inv_cov = inv_cov.ravel()
+        inv_resid_cov = inv_resid_cov.ravel()
+        shape_noise_1 = self.shape_noise_1.ravel()
+        shape_noise_2 = self.shape_noise_2.ravel()
+        kappa_obs = self.kappa_obs.ravel()
+        gamma_1_obs = self.gamma_1_obs.ravel()
+        gamma_2_obs = self.gamma_2_obs.ravel()
+
+        int_ptr = ctypes.POINTER(ctypes.c_int)
+        double_ptr = ctypes.POINTER(ctypes.c_double)
 
         args = LikelihoodArgs()
         args.num_params = num_params
-        args.y_inds = y_inds.ctypes.data_as(ctypes.POINTER(ctypes.c_int))
+        args.y_inds = y_inds.ctypes.data_as(int_ptr)
         args.mu = mu
-        args.inv_cov = inv_cov.ravel().ctypes.data_as(ctypes.POINTER(ctypes.c_double))
-        args.inv_resid_cov = inv_resid_cov.ravel().ctypes.data_as(ctypes.POINTER(ctypes.c_double))
-        args.y_obs = self.y_obs.ravel().ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.shift = self.shift
+        args.inv_cov = inv_cov.ctypes.data_as(double_ptr)
+        args.inv_resid_cov = inv_resid_cov.ctypes.data_as(double_ptr)
+        args.shape_noise_1 = shape_noise_1.ctypes.data_as(double_ptr)
+        args.shape_noise_2 = shape_noise_2.ctypes.data_as(double_ptr)
+        args.kappa_obs = kappa_obs.ctypes.data_as(double_ptr)
+        args.gamma_1_obs = gamma_1_obs.ctypes.data_as(double_ptr)
+        args.gamma_2_obs = gamma_2_obs.ctypes.data_as(double_ptr)
+        args.nside = self.nside
+        args.lmax = self.lmax
 
         y0 = np.random.normal(mu, sigma, num_params)
         # y0 = self.y_obs.ravel()
