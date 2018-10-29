@@ -54,7 +54,7 @@ y_noise = np.log(shift + kappas_noise)
 resid = (y_noise - y)[mask]
 resid_cov = np.cov(resid)
 
-rcond = 1e-4
+rcond = 1e-3
 
 inv_theory_cov = np.linalg.pinv(theory_cov, rcond=rcond)
 inv_resid_cov = np.linalg.pinv(resid_cov, rcond=rcond)
@@ -153,23 +153,120 @@ def sample_full_kappa_likelihood(mu, u, sqrt_s, shift, npix):
 
     return samp_kappa
 
+# nsamps = 1000
+#
+# print('Sampling w/ Prior Only')
+#
+# u, s, _ = np.linalg.svd(resid_cov)
+# sqrt_s = np.sqrt(s)
+# no_prior_samples = np.stack([sample_resid_kappa_likelihood(y_obs, u, sqrt_s, shift, mask) for i in range(nsamps)])
+#
+# print('Sampling Full Likelihood')
+#
+# u, s, _ = np.linalg.svd(cov)
+# sqrt_s = np.sqrt(s)
+# full_samples = np.stack([sample_full_kappa_likelihood(mu, u, sqrt_s, shift, npix) for i in range(nsamps)])
+#
+# c = ChainConsumer()
+# c.add_chain(no_prior_samples[:, :5])
+# c.add_chain(no_prior_samples[:, :5])
+# c.plotter.plot(figsize='column', truth=k_true[:5])
+# plt.show()
 
-nsamps = 1000
 
-print('Sampling w/ Prior Only')
+nsims = kappas.shape[1]
 
-u, s, _ = np.linalg.svd(resid_cov)
-sqrt_s = np.sqrt(s)
-no_prior_samples = np.stack([sample_resid_kappa_likelihood(y_obs, u, sqrt_s, shift, mask) for i in range(nsamps)])
+avg_map = np.zeros(npix)
+avg_updated_map = np.zeros(npix)
+rms_map = np.zeros(npix)
 
-print('Sampling Full Likelihood')
+print('Looping over map realizations.')
 
-u, s, _ = np.linalg.svd(cov)
-sqrt_s = np.sqrt(s)
-full_samples = np.stack([sample_full_kappa_likelihood(mu, u, sqrt_s, shift, npix) for i in range(nsamps)])
+for i in range(nsims):
+    print(i)
 
-c = ChainConsumer()
-c.add_chain(no_prior_samples[:, :5])
-c.add_chain(no_prior_samples[:, :5])
-c.plotter.plot(figsize='column', truth=k_true[:5])
+    k_true = kappas[:,i]
+    k_obs = kappas_noise[:,i]
+
+    k_true[~mask] = 0
+    k_true[mask] -= k_true[mask].mean()
+
+    k_obs[~mask] = 0
+    k_obs[mask] -= k_obs[mask].mean()
+
+    y_true = np.log(shift + k_true)
+    y_obs = np.log(shift + k_obs)
+
+    new_y = cov @ (inv_theory_cov @ (y_mu * np.ones(npix)) + full_inv_resid_cov @ y_obs)
+
+    new_kappa = np.exp(new_y) - shift
+
+    new_kappa[~mask] = 0
+    new_kappa[mask] -= new_kappa[mask].mean()
+
+    delta_kappa_obs = k_obs - k_true
+    delta_kappa_updated = new_kappa - k_true
+
+    avg_map += delta_kappa_obs
+    avg_updated_map += delta_kappa_updated
+
+
+avg_map[~mask] = np.nan
+avg_updated_map[~mask] = np.nan
+
+avg_map /= nsims
+avg_updated_map /= nsims
+
+rms_map = np.zeros(npix)
+rms_updated_map = np.zeros(npix)
+
+for i in range(nsims):
+    print(i)
+
+    k_true = kappas[:,i]
+    k_obs = kappas_noise[:,i]
+
+    k_true[~mask] = 0
+    k_true[mask] -= k_true[mask].mean()
+
+    k_obs[~mask] = 0
+    k_obs[mask] -= k_obs[mask].mean()
+
+    y_true = np.log(shift + k_true)
+    y_obs = np.log(shift + k_obs)
+
+    new_y = cov @ (inv_theory_cov @ (y_mu * np.ones(npix)) + full_inv_resid_cov @ y_obs)
+
+    new_kappa = np.exp(new_y) - shift
+
+    new_kappa[~mask] = 0
+    new_kappa[mask] -= new_kappa[mask].mean()
+
+    delta_kappa_obs = k_obs - k_true
+    delta_kappa_updated = new_kappa - k_true
+
+    rms_map += (delta_kappa_obs - avg_map) ** 2
+    rms_updated_map += (delta_kappa_updated - avg_updated_map) ** 2
+
+rms_map = np.sqrt(rms_map / nsims)
+rms_updated_map = np.sqrt(rms_updated_map / nsims)
+
+rms_map[~mask] = np.nan
+rms_updated_map[~mask] = np.nan
+
+hp.mollview(avg_map)
+hp.mollview(avg_updated_map)
+plt.show()
+
+hp.mollview(rms_map)
+hp.mollview(rms_updated_map)
+plt.show()
+
+plt.hist(avg_map, 20, alpha=0.5, density=True)
+plt.hist(avg_updated_map, 20, alpha=0.5, density=True)
+
+plt.figure()
+
+_,bins,_ = plt.hist(rms_map, 20, alpha=0.5, density=True)
+plt.hist(rms_updated_map, 20, alpha=0.5, density=True)
 plt.show()
