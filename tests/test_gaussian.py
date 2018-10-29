@@ -127,72 +127,6 @@ sn_var = sn_std ** 2
 sn_inv_cov = np.eye(mask.sum()) / sn_var
 
 
-# def gamma_ln_likelihood(kappa, g1_obs, g2_obs, y_mu, shift, prior_inv_cov, sn_inv_cov, mask):
-#     y = np.log(shift + kappa)
-#     y_prior_term = (y - y_mu) @ prior_inv_cov @ (y - y_mu)
-#
-#     g1, g2 = conv2shear(kappa, nside, lmax)
-#
-#     g1 = g1[mask]
-#     g2 = g2[mask]
-#     g1_obs = g1_obs[mask]
-#     g2_obs = g2_obs[mask]
-#
-#     gamma_term = ((g1 - g1_obs) @ sn_inv_cov @ (g1 - g1_obs)) + ((g2 - g2_obs) @ sn_inv_cov @ (g2 - g2_obs))
-#
-#     full_ln_likelihood = -0.5 * (y_prior_term + gamma_term)
-#
-#     return full_ln_likelihood
-#
-#
-# def kappa_ln_likelihood(kappa, mu, shift, inv_cov):
-#     y = np.log(shift + kappa)
-#
-#     full_ln_likelihood = -0.5 * (y - mu) @ inv_cov @ (y - mu)
-#
-#     return full_ln_likelihood
-
-def gamma_ln_likelihood(kappa, g1_obs, g2_obs, y_mu, shift, prior_inv_cov, sn_inv_cov, mask):
-    y = np.log(shift + kappa)
-    y_prior_term = (y - y_mu) @ prior_inv_cov @ (y - y_mu)
-
-    g1, g2 = conv2shear(kappa, nside, lmax)
-
-    g1 = g1[mask]
-    g2 = g2[mask]
-    g1_obs = g1_obs[mask]
-    g2_obs = g2_obs[mask]
-
-    gamma_term = ((g1 - g1_obs) @ sn_inv_cov @ (g1 - g1_obs)) + ((g2 - g2_obs) @ sn_inv_cov @ (g2 - g2_obs))
-
-    full_ln_likelihood = -0.5 * (y_prior_term + gamma_term)
-
-    return full_ln_likelihood
-
-
-def kappa_ln_likelihood(kappa, mu, shift, inv_cov):
-    y = np.log(shift + kappa)
-
-    full_ln_likelihood = -0.5 * (y - mu) @ inv_cov @ (y - mu)
-
-    return full_ln_likelihood
-
-
-def importance_weight(kappa, g1_obs, g2_obs, y_mu, shift, prior_inv_cov, sn_inv_cov, mask, mu, inv_cov):
-    g_ln_L = gamma_ln_likelihood(kappa, g1_obs, g2_obs, y_mu, shift, prior_inv_cov, sn_inv_cov, mask)
-    k_ln_L = kappa_ln_likelihood(kappa, mu, shift, inv_cov)
-
-    # print(g_ln_L)
-    # print(k_ln_L)
-    # print(g_ln_L - k_ln_L)
-    # print('\n\n\n\n\n')
-
-
-    ratio = np.exp(g_ln_L - k_ln_L)
-
-    return ratio
-
-
 def sample_resid_kappa_likelihood(y_obs, u, sqrt_s, shift, mask):
     np.random.seed()
 
@@ -234,14 +168,8 @@ u, s, _ = np.linalg.svd(cov)
 sqrt_s = np.sqrt(s)
 full_samples = np.stack([sample_full_kappa_likelihood(mu, u, sqrt_s, shift, npix) for i in range(nsamps)])
 
-print('Computing Importance Weights')
-
-weights = np.stack([importance_weight(no_prior_samples[i,:], g1_obs, g2_obs, y_mu, shift, inv_theory_cov, sn_inv_cov, mask, mu, inv_cov) for i in range(nsamps)])
-
-print(weights)
-
 c = ChainConsumer()
 c.add_chain(no_prior_samples[:, :5])
-c.add_chain(no_prior_samples[:, :5], weights=weights)
+c.add_chain(no_prior_samples[:, :5])
 c.plotter.plot(figsize='column', truth=k_true[:5])
 plt.show()
