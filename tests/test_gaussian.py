@@ -54,7 +54,7 @@ y_noise = np.log(shift + kappas_noise)
 resid = (y_noise - y)[mask]
 resid_cov = np.cov(resid)
 
-rcond = 1e-3
+rcond = 1e-5
 
 inv_theory_cov = np.linalg.pinv(theory_cov, rcond=rcond)
 inv_resid_cov = np.linalg.pinv(resid_cov, rcond=rcond)
@@ -254,19 +254,33 @@ rms_updated_map = np.sqrt(rms_updated_map / nsims)
 rms_map[~mask] = np.nan
 rms_updated_map[~mask] = np.nan
 
-hp.mollview(avg_map)
-hp.mollview(avg_updated_map)
+hp.mollview(avg_map, min=-0.00025, max=0.00025, title='$\\langle \\Delta \\kappa_{\\mathrm{KSB}} \\rangle = \\langle \\kappa_{\\mathrm{KSB}} - \\kappa_{\\mathrm{true}} \\rangle$')
+plt.savefig(fig_dir + 'dk_ksb.png', dpi=300, bbox_inches='tight')
+hp.mollview(avg_updated_map, min=-0.00025, max=0.00025, title='$\\langle \\Delta \\widetilde{\\kappa} \\rangle = \\langle \\widetilde{\\kappa} - \\kappa_{\\mathrm{true}} \\rangle$')
+plt.savefig(fig_dir + 'dk_ln.png', dpi=300, bbox_inches='tight')
 plt.show()
 
-hp.mollview(rms_map)
-hp.mollview(rms_updated_map)
+hp.mollview(rms_map, min=0.001, max=0.002, title='RMS $\\Delta \\kappa_{\\mathrm{KSB}}$')
+plt.savefig(fig_dir + 'rms_dk_ksb.png', dpi=300, bbox_inches='tight')
+hp.mollview(rms_updated_map, min=0.001, max=0.002, title='RMS $\\Delta \\widetilde{\\kappa}$')
+plt.savefig(fig_dir + 'rms_dk_ln.png', dpi=300, bbox_inches='tight')
 plt.show()
 
-plt.hist(avg_map, 20, alpha=0.5, density=True)
-plt.hist(avg_updated_map, 20, alpha=0.5, density=True)
+plt.hist(avg_map, 20, alpha=0.5, density=True, label='KSB')
+plt.hist(avg_updated_map, 20, alpha=0.5, density=True, label='$\\widetilde{\\kappa}$')
+plt.xlabel('$\\Delta \\kappa$')
+plt.ylabel('Number of Pixels')
+plt.legend()
+plt.title('Difference Histogram')
+plt.savefig(fig_dir + 'hist_dk.png', dpi=300, bbox_inches='tight')
 
 plt.figure()
 
-_,bins,_ = plt.hist(rms_map, 20, alpha=0.5, density=True)
-plt.hist(rms_updated_map, 20, alpha=0.5, density=True)
+_,bins,_ = plt.hist(rms_map, 20, alpha=0.5, density=True, label='KSB')
+plt.hist(rms_updated_map, 20, alpha=0.5, density=True, label='$\\widetilde{\\kappa}$')
+plt.xlabel('RMS $\\Delta \\kappa$')
+plt.ylabel('Number of Pixels')
+plt.legend()
+plt.title('RMS Difference Histogram')
+plt.savefig(fig_dir + 'hist_rms_dk.png', dpi=300, bbox_inches='tight')
 plt.show()
