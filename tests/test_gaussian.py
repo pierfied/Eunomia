@@ -46,7 +46,8 @@ inv_cov = np.linalg.inv(theory_cov)
 
 kappas = np.load(data_dir + 'kappas_{0}_{1}.npy'.format(nside, lmax))
 kappas_noise = np.load(data_dir + 'kappas_noise_{0}_{1}.npy'.format(nside, lmax))
-mask = np.load(data_dir + 'mask.npy')
+# mask = np.load(data_dir + 'mask.npy')
+mask = np.load(data_dir + 'des_y1_mask_{0}.npy'.format(nside))
 
 y = np.log(shift + kappas)
 y_noise = np.log(shift + kappas_noise)
@@ -54,7 +55,7 @@ y_noise = np.log(shift + kappas_noise)
 resid = (y_noise - y)[mask]
 resid_cov = np.cov(resid)
 
-rcond = 1e-5
+rcond = 1e-4
 
 inv_theory_cov = np.linalg.pinv(theory_cov, rcond=rcond)
 inv_resid_cov = np.linalg.pinv(resid_cov, rcond=rcond)
@@ -122,7 +123,7 @@ gammas_obs = np.load(data_dir + 'gammas_noise_{0}_{1}.npy'.format(nside, lmax))
 g1_obs = gammas_obs[0,:,0]
 g2_obs = gammas_obs[1,:,0]
 
-sn_std = 0.003
+sn_std = 0.003 * (nside / 16)
 sn_var = sn_std ** 2
 sn_inv_cov = np.eye(mask.sum()) / sn_var
 
