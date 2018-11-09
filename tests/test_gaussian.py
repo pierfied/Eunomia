@@ -17,9 +17,9 @@ if not os.path.exists(fig_dir):
 if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 
-nside = 16
+nside = 128
 npix = hp.nside2npix(nside)
-lmax = 32
+lmax = 256
 
 # Load in the harmonic covariance values (Cl).
 cl = np.array(pd.read_csv(data_dir + 'full_cl.dat', delim_whitespace=True, header=None))[:, 1]
@@ -29,13 +29,35 @@ cl = cl[:len(pixwin)] * (pixwin ** 2)
 
 cl = cl[:lmax + 1]
 
+# thetas = np.linspace(0, np.pi/80, 1000)
+#
+# covs = eunomia.sim_tools.covariance.cov_sep_theta_from_cl(thetas, cl)
+#
+# resol = hp.nside2resol(nside)
+#
+# plt.plot(np.rad2deg(thetas), covs)
+# plt.axvline(resol, c='r')
+# plt.show()
+# exit(0)
+
 shift = 0.053
 
+max_sep = np.pi/80
+
 # Compute the full covariance matrix for the map from Cl's.
-inds = np.arange(npix)
-mask = inds < 1000
-ln_theory_cov, ang_sep = eunomia.sim_tools.covariance.full_cov_from_cl(cl, nside, inds)
-theory_cov = np.log(1 + ln_theory_cov / (shift ** 2))
+# inds = np.arange(npix)
+# mask = inds < 1000
+# ln_theory_cov = eunomia.sim_tools.covariance.full_cov_from_cl(cl, nside, max_sep)
+#
+# theory_cov = ln_theory_cov.copy()
+# theory_cov.data = np.log(1 + ln_theory_cov.data / (shift ** 2))
+#
+# np.save(out_dir + 'theory_cov_{0}_{1}.npy'.format(nside, lmax), theory_cov)
+#
+# print(theory_cov)
+# exit(0)
+
+theory_cov = np.load(out_dir + 'theory_cov_{0}_{1}.npy'.format(nside, lmax))
 
 y_mu = np.log(shift) - 0.5 * theory_cov[0, 0]
 

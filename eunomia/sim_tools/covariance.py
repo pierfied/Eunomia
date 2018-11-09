@@ -1,6 +1,7 @@
 import numpy as np
 import healpy as hp
 import scipy.interpolate as interp
+import scipy.sparse as sp
 
 
 def cov_sep_theta_from_cl(theta, cl):
@@ -12,7 +13,7 @@ def cov_sep_theta_from_cl(theta, cl):
     return np.polynomial.legendre.legval(np.cos(theta), legendre_coeffs)
 
 
-def full_cov_from_cl(cl, nside, indices=None):
+def full_cov_from_cl(cl, nside, max_sep, indices=None):
     # If indices not passed construct full-sky indices.
     if indices is None:
         indices = np.arange(hp.nside2npix(nside))
@@ -25,17 +26,22 @@ def full_cov_from_cl(cl, nside, indices=None):
     # Get the number of pixels.
     npix = len(indices)
 
-    # Compute the angular separation of each pair of pixels.
-    theta, phi = hp.pixelfunc.pix2ang(nside, indices)
-    ang_coords = np.stack([theta, phi])
-    ang_sep = np.zeros([npix, npix])
+    cov = sp.lil_matrix((npix, npix))
+
     for i in range(npix):
-        ang_sep[i, :] = hp.rotator.angdist(ang_coords[:, i], ang_coords)
+        if i % 200 == 0:
+            print(i)
 
-    # Compute the full covariance matrix.
-    cov = s(ang_sep)
+        pix_vec = hp.pix2vec(nside, i)
+        neighbor_pixs = hp.query_disc(nside, pix_vec, max_sep)
+        neighbor_vecs = hp.pix2vec(nside, neighbor_pixs)
+        neighbor_seps =  hp.rotator.angdist(pix_vec, neighbor_vecs)
 
-    return cov, ang_sep
+        neighbor_covs = cov_sep_theta_from_cl(neighbor_seps, cl)
+
+        cov[i,neighbor_pixs] = neighbor_covs
+
+    return sp.csr_matrix(cov)
 
 def full_neighbor_cov_from_cl(cl, nside, indices=None):
     # If indices not passed construct full-sky indices.
