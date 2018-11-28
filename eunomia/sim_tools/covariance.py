@@ -2,6 +2,7 @@ import numpy as np
 import healpy as hp
 import scipy.interpolate as interp
 import scipy.sparse as sp
+from tqdm import tqdm
 
 
 def cov_sep_theta_from_cl(theta, cl):
@@ -28,10 +29,9 @@ def full_cov_from_cl(cl, nside, max_sep, indices=None):
 
     cov = sp.lil_matrix((npix, npix))
 
-    for i in range(npix):
-        if i % 200 == 0:
-            print(i)
+    print("Computing Sparse Theory Covariance")
 
+    for i in tqdm(range(npix)):
         pix_vec = hp.pix2vec(nside, i)
         neighbor_pixs = hp.query_disc(nside, pix_vec, max_sep)
         neighbor_vecs = hp.pix2vec(nside, neighbor_pixs)

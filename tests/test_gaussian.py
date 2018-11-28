@@ -7,6 +7,10 @@ import healpy as hp
 import pandas as pd
 import os
 from chainconsumer import ChainConsumer
+import scipy.sparse as sp
+import scipy.sparse.linalg as spl
+import pickle
+from tqdm import tqdm
 
 # Set important directories and create the figure directory if necessary.
 data_dir = './test_data/'
@@ -45,48 +49,94 @@ shift = 0.053
 max_sep = np.pi/80
 
 # Compute the full covariance matrix for the map from Cl's.
-# inds = np.arange(npix)
+inds = np.arange(npix)
 # mask = inds < 1000
 # ln_theory_cov = eunomia.sim_tools.covariance.full_cov_from_cl(cl, nside, max_sep)
 #
 # theory_cov = ln_theory_cov.copy()
 # theory_cov.data = np.log(1 + ln_theory_cov.data / (shift ** 2))
 #
-# np.save(out_dir + 'theory_cov_{0}_{1}.npy'.format(nside, lmax), theory_cov)
+# # np.save(out_dir + 'theory_cov_{0}_{1}.npy'.format(nside, lmax), theory_cov)
 #
+# theory_cov_file = open(out_dir + 'theory_cov_{0}_{1}.npy'.format(nside, lmax), 'wb')
+# pickle.dump(theory_cov, theory_cov_file)
+# theory_cov_file.close()
+#
+# exit(0)
+
+# theory_cov = np.load(out_dir + 'theory_cov_{0}_{1}.npy'.format(nside, lmax))
+
+theory_cov_file = open(out_dir + 'theory_cov_{0}_{1}.npy'.format(nside, lmax), 'rb')
+theory_cov = pickle.load(theory_cov_file)
+theory_cov_file.close()
+
+# print(type(theory_cov))
 # print(theory_cov)
 # exit(0)
 
-theory_cov = np.load(out_dir + 'theory_cov_{0}_{1}.npy'.format(nside, lmax))
+mask = np.load(data_dir + 'des_y1_mask_{0}.npy'.format(nside))
 
 y_mu = np.log(shift) - 0.5 * theory_cov[0, 0]
 
 # mask = ang_sep > 0.03
 
-inv_cov = np.linalg.inv(theory_cov)
+# inv_cov = np.linalg.inv(theory_cov)
 # inv_cov[mask] = 0
 
 kappas = np.load(data_dir + 'kappas_{0}_{1}.npy'.format(nside, lmax))
 kappas_noise = np.load(data_dir + 'kappas_noise_{0}_{1}.npy'.format(nside, lmax))
 # mask = np.load(data_dir + 'mask.npy')
-mask = np.load(data_dir + 'des_y1_mask_{0}.npy'.format(nside))
 
 y = np.log(shift + kappas)
 y_noise = np.log(shift + kappas_noise)
 
-resid = (y_noise - y)[mask]
-resid_cov = np.cov(resid)
+# resid = (y_noise - y)[mask]
+# full_resid_cov = np.cov(resid)
+# resid_cov = np.zeros_like(full_resid_cov)
+#
+# pix_vecs = np.array(hp.pix2vec(nside, inds[mask]))
+#
+# for i in tqdm(range(mask.sum())):
+#     neighbor_seps =  hp.rotator.angdist(pix_vecs[:, i], pix_vecs)
+#
+#     good_neighbors = neighbor_seps < max_sep
+#
+#     resid_cov[i, good_neighbors] = full_resid_cov[i, good_neighbors]
 
 rcond = 1e-4
 
-inv_theory_cov = np.linalg.pinv(theory_cov, rcond=rcond)
-inv_resid_cov = np.linalg.pinv(resid_cov, rcond=rcond)
-resid_cov = np.linalg.pinv(inv_resid_cov, rcond=rcond)
+# print('Inverting Residual Covariance')
+# inv_resid_cov = np.linalg.pinv(resid_cov, rcond=rcond)
+# print('Uninverting Residual Covariance')
+# resid_cov = np.linalg.pinv(inv_resid_cov, rcond=rcond)
+#
+# full_inv_resid_cov = sp.lil_matrix((npix, npix))
+# print('Building Sparse Residual Covariance')
+# for i in tqdm(range(mask.sum())):
+#     full_inv_resid_cov[inds[mask][i], inds[mask]] = resid_cov[i,:]
+#
+# full_inv_resid_cov = sp.csr_matrix(full_inv_resid_cov)
+# full_inv_resid_cov.eliminate_zeros()
+#
+# full_inv_resid_cov_file = open(out_dir + 'full_inv_resid_cov_{0}_{1}.pkl'.format(nside, lmax), 'wb')
+# full_inv_resid_cov = pickle.dump(full_inv_resid_cov, full_inv_resid_cov_file)
+# full_inv_resid_cov_file.close()
 
-mask_2d_i, mask_2d_j = np.meshgrid(mask, mask, indexing='ij')
-mask_2d = mask_2d_i & mask_2d_j
-full_inv_resid_cov = np.zeros(shape=[npix, npix])
-full_inv_resid_cov.flat[mask_2d.ravel()] = inv_resid_cov.ravel()
+full_inv_resid_cov_file = open(out_dir + 'full_inv_resid_cov_{0}_{1}.pkl'.format(nside, lmax), 'rb')
+full_inv_resid_cov = pickle.load(full_inv_resid_cov_file)
+full_inv_resid_cov_file.close()
+
+# print(full_inv_resid_cov)
+# exit(0)
+
+print('Inverting Sparse Theory Covariance')
+
+# inv_theory_cov = np.linalg.pinv(theory_cov, rcond=rcond)
+k = 1000
+s = spl.svds(theory_cov, k=k, return_singular_vectors=False)
+
+print(s)
+exit(0)
 
 inv_cov = inv_theory_cov + full_inv_resid_cov
 cov = np.linalg.pinv(inv_cov, rcond=rcond)
