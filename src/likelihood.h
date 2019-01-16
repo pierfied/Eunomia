@@ -10,8 +10,13 @@
 typedef struct {
     int num_params;
     int *y_inds;
+    double shift;
     double mu;
     double *inv_cov;
+    double *g1_obs;
+    double *g2_obs;
+    double *k2g1;
+    double *k2g2;
 } LikelihoodArgs;
 
 SampleChain sample_map(double *y0, double *m, LikelihoodArgs args,
