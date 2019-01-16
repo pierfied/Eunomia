@@ -18,16 +18,18 @@ class LikelihoodArgs(ctypes.Structure):
                 ('g1_obs', ctypes.POINTER(ctypes.c_double)),
                 ('g2_obs', ctypes.POINTER(ctypes.c_double)),
                 ('k2g1', ctypes.POINTER(ctypes.c_double)),
-                ('k2g2', ctypes.POINTER(ctypes.c_double))]
+                ('k2g2', ctypes.POINTER(ctypes.c_double)),
+                ('sn_var', ctypes.c_double)]
 
 class MapSampler:
-    def __init__(self, g1_obs, g2_obs, k2g1, k2g2, shift, cov):
+    def __init__(self, g1_obs, g2_obs, k2g1, k2g2, shift, cov, sn_var):
         self.g1_obs = g1_obs
         self.g2_obs = g2_obs
         self.k2g1 = k2g1
         self.k2g2 = k2g2
         self.shift = shift
         self.cov = cov
+        self.sn_var = sn_var
 
     def sample(self, num_samps, num_steps, num_burn, epsilon):
         lib_path = os.path.join(os.path.dirname(__file__), '../lib/liblikelihood.so')
@@ -68,6 +70,7 @@ class MapSampler:
         args.g2_obs = g2_obs.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.k2g1 = k2g1.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.k2g2 = k2g2.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        args.sn_var = self.sn_var
 
         y0 = np.ascontiguousarray(mu + np.random.standard_normal(num_params) * sigma)
         y0_p = y0.ctypes.data_as(ctypes.POINTER(ctypes.c_double))

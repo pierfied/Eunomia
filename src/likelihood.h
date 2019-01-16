@@ -17,6 +17,7 @@ typedef struct {
     double *g2_obs;
     double *k2g1;
     double *k2g2;
+    double sn_var;
 } LikelihoodArgs;
 
 SampleChain sample_map(double *y0, double *m, LikelihoodArgs args,
