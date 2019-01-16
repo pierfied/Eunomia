@@ -1,5 +1,6 @@
 import numpy as np
 import healpy as hp
+import scipy.interpolate as interp
 
 
 def cov_sep_theta_from_cl(theta, cl):
@@ -16,6 +17,11 @@ def full_cov_from_cl(cl, nside, indices=None):
     if indices is None:
         indices = np.arange(hp.nside2npix(nside))
 
+    thetas = np.linspace(0, np.pi, 10000)
+    cov_seps = cov_sep_theta_from_cl(thetas, cl)
+
+    s = interp.InterpolatedUnivariateSpline(thetas, cov_seps)
+
     # Get the number of pixels.
     npix = len(indices)
 
@@ -27,7 +33,7 @@ def full_cov_from_cl(cl, nside, indices=None):
         ang_sep[i, :] = hp.rotator.angdist(ang_coords[:, i], ang_coords)
 
     # Compute the full covariance matrix.
-    cov = cov_sep_theta_from_cl(ang_sep, cl)
+    cov = s(ang_sep)
 
     return cov, ang_sep
 

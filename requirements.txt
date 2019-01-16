@@ -4,3 +4,4 @@ healpy
 numpy
 matplotlib
 pandas
+scipy
