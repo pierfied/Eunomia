@@ -7,6 +7,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <omp.h>
+#include <stdio.h>
 
 SampleChain sample_map(double *y0, double *m, LikelihoodArgs args,
                        int num_samps, int num_steps, int num_burn,
@@ -92,7 +93,7 @@ Hamiltonian map_likelihood(double *y, void *args_ptr) {
     shear_contrib *= -0.5 / sn_var;
 
     Hamiltonian likelihood;
-    likelihood.log_likelihood = normal_contrib;
+    likelihood.log_likelihood = normal_contrib + shear_contrib;
     likelihood.grad = grad;
 
     return likelihood;

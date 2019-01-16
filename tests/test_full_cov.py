@@ -55,9 +55,13 @@ theory_cov = np.log(1 + ln_theory_cov / (shift ** 2))
 
 k2g1, k2g2 = eunomia.sim_tools.shear_conv_transformations.compute_full_conv2shear_mats(nside)
 
-ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1, k2g2, shift, theory_cov)
-chain, logp = ms.sample(1000, 10, 0, 1.0)
+sn_std = 0.003
+sn_var = sn_std ** 2
 
+ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1, k2g2, shift, theory_cov, sn_var)
+chain, logp = ms.sample(1000, 10, 100, 1.0)
+
+plt.clf()
 plt.plot(range(len(logp)), logp)
 plt.xlabel('Sample #')
 plt.ylabel('Log-Likelihood')
@@ -67,6 +71,7 @@ plt.savefig(fig_dir + 'logp', dpi=300)
 np.save(out_dir + 'chain.npy', chain)
 np.save(out_dir + 'logp.npy', logp)
 
+plt.clf()
 c = ChainConsumer()
 c.add_chain(chain[:, :5])
 c.plotter.plot(figsize="column")
