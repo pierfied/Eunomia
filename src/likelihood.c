@@ -46,51 +46,64 @@ Hamiltonian map_likelihood(double *y, void *args_ptr) {
     double *grad = malloc(sizeof(double) * num_params);
 
     double exp_y[num_params];
+    double g1[num_params];
+    double g2[num_params];
+#pragma omp parallel for
     for (int i = 0; i < num_params; ++i) {
         exp_y[i] = exp(y[i]);
+        g1[i] = 0;
+        g2[i] = 0;
     }
+
+    for (int i = 0; i < num_params; ++i) {
+        double kappa_i = exp_y[i] - shift;
+
+#pragma omp parallel for
+        for (int j = 0; j < num_params; ++j) {
+            int mat_ind = i * num_params + j;
+            g1[j] += k2g1[mat_ind] * kappa_i;
+            g2[j] += k2g2[mat_ind] * kappa_i;
+        }
+    }
+
+//    printf("Num Params: %d\n", num_params);
 
     double normal_contrib = 0;
     double shear_contrib = 0;
 #pragma omp parallel for
     for (int i = 0; i < num_params; i++) {
-        // Check that this is a high occupancy voxel.
-        if (y_inds[i] < 0) continue;
-        int y1 = y_inds[i];
-
         // Loop over neighbors.
         double neighbor_contrib = 0;
-        double g1 = 0;
-        double g2 = 0;
+        double g1_grad_term = 0;
+        double g2_grad_term = 0;
         for (int j = 0; j < num_params; j++) {
-            if (y_inds[j] < 0) continue;
-            int y2 = y_inds[j];
-
             // Compute the neighbor contribution.
             int ic_ind = num_params * i + j;
-            neighbor_contrib += inv_cov[ic_ind] * (y[y2] - mu);
-            g1 += k2g1[ic_ind] * (exp_y[y2] - shift);
-            g2 += k2g2[ic_ind] * (exp_y[y2] - shift);
+            neighbor_contrib += inv_cov[ic_ind] * (y[j] - mu);
+
+            ic_ind = num_params * i + j;
+            g1_grad_term += (g1_obs[j] - g1[j]) * k2g1[ic_ind] * exp_y[i];
+            g2_grad_term += (g2_obs[j] - g2[j]) * k2g2[ic_ind] * exp_y[i];
         }
 
-        double delta_gamma_1 = (g1_obs[y1] - g1);
-        double delta_gamma_2 = (g2_obs[y1] - g2);
+        double delta_gamma_1 = (g1_obs[i] - g1[i]);
+        double delta_gamma_2 = (g2_obs[i] - g2[i]);
 
 #pragma omp critical
         {
             // Compute the total contribution of this voxel to the normal.
-            normal_contrib += (y[y1] - mu) * neighbor_contrib;
+            normal_contrib += (y[i] - mu) * neighbor_contrib;
 
             shear_contrib += delta_gamma_1 * delta_gamma_1 + delta_gamma_2 * delta_gamma_2;
         }
 
         // Compute the gradient for the voxel.
-        int ind = num_params * i + i;
-        grad[y1] = -neighbor_contrib +
-                   (delta_gamma_1 * k2g1[ind] * exp_y[y1] + delta_gamma_2 * k2g2[ind] * exp_y[y1]) / sn_var;
+        grad[i] = -neighbor_contrib + (g1_grad_term + g2_grad_term) / sn_var;
     }
     normal_contrib *= -0.5;
     shear_contrib *= -0.5 / sn_var;
+
+//    printf("Normal Contrib: %f\n", normal_contrib);
 
     Hamiltonian likelihood;
     likelihood.log_likelihood = normal_contrib + shear_contrib;

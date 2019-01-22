@@ -7,6 +7,7 @@ import healpy as hp
 import pandas as pd
 import os
 from chainconsumer import ChainConsumer
+from tqdm import tqdm
 
 # Set important directories and create the figure directory if necessary.
 data_dir = './test_data/'
@@ -24,6 +25,13 @@ lmax = 2 * nside
 # Load in the convergence map.
 kappas = np.load(data_dir + 'kappas_{0}_{1}.npy'.format(nside, lmax))
 kappas_noise = np.load(data_dir + 'kappas_noise_{0}_{1}.npy'.format(nside, lmax))
+# kappas_noise = kappas.copy()
+
+# nside = 16
+# lmax = 2 * nside
+
+kappas = hp.ud_grade(kappas.T, nside).T
+kappas_noise = kappas.copy()
 
 k = kappas[:, 0]
 kn = kappas_noise[:, 0]
@@ -34,15 +42,51 @@ hp.mollview(kn, title='Flask Sim Convergence Map $n_{side}=%d$, $\ell_{max}=%d$'
 plt.savefig(fig_dir + 'kappa_map', dpi=300)
 
 # Load in the harmonic covariance values (Cl).
-cl = np.array(pd.read_csv(data_dir + 'Cl.dat', delim_whitespace=True))[:, 1]
+cl = np.array(pd.read_csv(data_dir + 'full_cl.dat', delim_whitespace=True))[:, 1]
+pixwin = hp.pixwin(nside)
+cl_pw = cl[:len(pixwin)] * (pixwin ** 2)
+# cl = cl[:lmax + 1] * (pixwin[:lmax + 1] ** 2)
+
+# kd = hp.ud_grade(k, 64)
+# kd = hp.smoothing(k, lmax=128, verbose=False)
+#
+# plt.clf()
+# plt.plot(hp.anafast(kd, lmax=128))
+# pixwin = hp.pixwin(64)
+# cl = cl[:129] * (pixwin[:129] ** 2)
+# plt.plot(cl)
+# plt.show()
+#
+# exit(0)
+#
+# thetas = np.linspace(0,np.pi/10,1000)
+#
+# cov_pw = eunomia.sim_tools.covariance.cov_sep_theta_from_cl(thetas, cl_pw)
+# cov = eunomia.sim_tools.covariance.cov_sep_theta_from_cl(thetas, cl)
+#
+# plt.clf()
+# plt.plot(thetas, cov/cov[0])
+# plt.plot(thetas, cov_pw/cov_pw[0])
+# plt.axvline(hp.nside2resol(nside), c='r')
+# plt.show()
+# exit(0)
 
 # Compute the full covariance matrix for the map from Cl's.
 shift = 0.053
-ln_theory_cov, ang_sep = eunomia.sim_tools.covariance.full_cov_from_cl(cl, nside)
+# inds = np.arange(10000, dtype=np.int32)
+inds = None
+ln_theory_cov, ang_sep = eunomia.sim_tools.covariance.full_cov_from_cl(cl, nside, inds)
 theory_cov = np.log(1 + ln_theory_cov / (shift ** 2))
 
+# mask = ang_sep > 0.5
+# theory_cov[mask] = 0
+
+# print(np.linalg.cond(theory_cov))
+# print(theory_cov.shape)
+# exit(0)
+
 # # Plot the covariance matrix.
-# plt.matshow(cov, norm=matplotlib.colors.LogNorm())
+# plt.matshow(theory_cov, norm=matplotlib.colors.LogNorm())
 # cbar = plt.colorbar()
 # plt.suptitle('Full $\kappa$ Covariance')
 # plt.savefig(fig_dir + 'kappa_full_cov', dpi=300)
@@ -53,13 +97,16 @@ theory_cov = np.log(1 + ln_theory_cov / (shift ** 2))
 # plt.suptitle('Full $\kappa$ Covariance (Zoomed)')
 # plt.savefig(fig_dir + 'kappa_full_cov_zoomed', dpi=300)
 
-k2g1, k2g2 = eunomia.sim_tools.shear_conv_transformations.compute_full_conv2shear_mats(nside)
+k2g1, k2g2 = eunomia.sim_tools.shear_conv_transformations.compute_full_conv2shear_mats(nside, lmax)
 
 sn_std = 0.003
 sn_var = sn_std ** 2
 
-ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1, k2g2, shift, theory_cov, sn_var)
-chain, logp = ms.sample(1000, 10, 100, 1.0)
+ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1.T, k2g2.T, shift, theory_cov, sn_var, inds)
+chain, logp = ms.sample(10000, 10, 100, 1.0)
+
+# print(np.linalg.cond(theory_cov))
+# print(theory_cov.shape)
 
 plt.clf()
 plt.plot(range(len(logp)), logp)

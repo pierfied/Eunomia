@@ -22,7 +22,7 @@ class LikelihoodArgs(ctypes.Structure):
                 ('sn_var', ctypes.c_double)]
 
 class MapSampler:
-    def __init__(self, g1_obs, g2_obs, k2g1, k2g2, shift, cov, sn_var):
+    def __init__(self, g1_obs, g2_obs, k2g1, k2g2, shift, cov, sn_var, inds=None):
         self.g1_obs = g1_obs
         self.g2_obs = g2_obs
         self.k2g1 = k2g1
@@ -30,6 +30,7 @@ class MapSampler:
         self.shift = shift
         self.cov = cov
         self.sn_var = sn_var
+        self.inds = inds
 
     def sample(self, num_samps, num_steps, num_burn, epsilon):
         lib_path = os.path.join(os.path.dirname(__file__), '../lib/liblikelihood.so')
@@ -51,14 +52,19 @@ class MapSampler:
 
         epsilon *= sigma
 
-        inv_cov = np.ascontiguousarray(np.linalg.inv(self.cov), dtype=np.double)
+        inv_cov = np.ascontiguousarray(np.linalg.inv(self.cov).ravel(), dtype=np.double)
 
         num_params = self.cov.shape[0]
-        y_inds = np.ascontiguousarray(np.arange(num_params, dtype=np.int32), dtype=np.int32)
+
+        if self.inds is None:
+            self.inds = np.arange(num_params, dtype=np.int32)
+
+
+        y_inds = np.ascontiguousarray(self.inds, dtype=np.int32)
         g1_obs = np.ascontiguousarray(self.g1_obs, dtype=np.double)
         g2_obs = np.ascontiguousarray(self.g2_obs, dtype=np.double)
-        k2g1 = np.ascontiguousarray(self.k2g1, dtype=np.double)
-        k2g2 = np.ascontiguousarray(self.k2g2, dtype=np.double)
+        k2g1 = np.ascontiguousarray(self.k2g1.ravel(), dtype=np.double)
+        k2g2 = np.ascontiguousarray(self.k2g2.ravel(), dtype=np.double)
 
 
         args = LikelihoodArgs()
