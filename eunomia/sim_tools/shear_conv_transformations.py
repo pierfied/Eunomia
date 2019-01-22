@@ -1,6 +1,6 @@
 import numpy as np
 import healpy as hp
-
+from tqdm import tqdm
 
 def conv2shear(k, lmax):
     nside = hp.npix2nside(len(k))
@@ -39,17 +39,17 @@ def shear2conv(g1, g2, lmax):
     return k
 
 
-def compute_full_conv2shear_mats(nside):
+def compute_full_conv2shear_mats(nside, lmax):
     npix = hp.nside2npix(nside)
 
     A1 = np.zeros((npix, npix))
     A2 = np.zeros_like(A1)
 
-    for i in range(npix):
+    for i in tqdm(range(npix)):
         k = np.zeros(npix)
         k[i] = 1
 
-        g1, g2 = conv2shear(k, 64)
+        g1, g2 = conv2shear(k, lmax)
 
         A1[:, i] = g1
         A2[:, i] = g2
