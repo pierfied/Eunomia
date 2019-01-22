@@ -19,7 +19,7 @@ if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 
 # Determine nside and lmax.
-nside = 16
+nside = 32
 lmax = 2 * nside
 
 # Load in the convergence map.
@@ -100,10 +100,11 @@ theory_cov = np.log(1 + ln_theory_cov / (shift ** 2))
 k2g1, k2g2 = eunomia.sim_tools.shear_conv_transformations.compute_full_conv2shear_mats(nside, lmax)
 
 sn_std = 0.003
+sn_std = 0.0045
 sn_var = sn_std ** 2
 
-ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1.T, k2g2.T, shift, theory_cov, sn_var, inds)
-chain, logp = ms.sample(10000, 10, 100, 1.0)
+ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1, k2g2, shift, theory_cov, sn_var, inds)
+chain, logp = ms.sample(10000, 10, 50, 1.0)
 
 # print(np.linalg.cond(theory_cov))
 # print(theory_cov.shape)
