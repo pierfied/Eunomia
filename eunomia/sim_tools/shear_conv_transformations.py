@@ -39,19 +39,22 @@ def shear2conv(g1, g2, lmax):
     return k
 
 
-def compute_full_conv2shear_mats(nside, lmax):
+def compute_full_conv2shear_mats(nside, lmax, inds):
     npix = hp.nside2npix(nside)
 
-    A1 = np.zeros((npix, npix))
+    A1 = np.zeros((len(inds), len(inds)))
     A2 = np.zeros_like(A1)
 
-    for i in tqdm(range(npix)):
+    mat_ind = 0
+    for i in tqdm(inds):
         k = np.zeros(npix)
         k[i] = 1
 
         g1, g2 = conv2shear(k, lmax)
 
-        A1[i, :] = g1
-        A2[i, :] = g2
+        A1[mat_ind, :] = g1[inds]
+        A2[mat_ind, :] = g2[inds]
+
+        mat_ind += 1
 
     return A1, A2
