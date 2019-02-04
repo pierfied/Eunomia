@@ -19,13 +19,13 @@ if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 
 # Determine nside and lmax.
-nside = 128
+nside = 32
 lmax = 2 * nside
 
 # Load in the convergence map.
 kappas = np.load(data_dir + 'kappas_{0}_{1}.npy'.format(nside, lmax))
-kappas_noise = np.load(data_dir + 'kappas_noise_{0}_{1}.npy'.format(nside, lmax))
-gammas_noise = np.load(data_dir + 'gammas_noise_{0}_{1}.npy'.format(nside, lmax))
+# kappas_noise = np.load(data_dir + 'kappas_noise_{0}_{1}.npy'.format(nside, lmax))
+# gammas_noise = np.load(data_dir + 'gammas_noise_{0}_{1}.npy'.format(nside, lmax))
 # kappas_noise = kappas.copy()
 
 # nside = 16
@@ -35,10 +35,14 @@ gammas_noise = np.load(data_dir + 'gammas_noise_{0}_{1}.npy'.format(nside, lmax)
 # kappas_noise = kappas.copy()
 
 k = kappas[:, 0]
-kn = kappas_noise[:, 0]
-# g1_obs, g2_obs = eunomia.sim_tools.shear_conv_transformations.conv2shear(k, lmax)
-g1_obs = gammas_noise[0, :, 0]
-g2_obs = gammas_noise[1, :, 0]
+# kn = kappas_noise[:, 0]
+# # g1_obs, g2_obs = eunomia.sim_tools.shear_conv_transformations.conv2shear(k, lmax)
+# g1_obs = gammas_noise[0, :, 0]
+# g2_obs = gammas_noise[1, :, 0]
+
+kn = k.copy()
+g1_obs = k.copy()
+g2_obs = k.copy()
 
 # Plot the convergence map.
 hp.mollview(kn, title='Flask Sim Convergence Map $n_{side}=%d$, $\ell_{max}=%d$' % (nside, lmax), unit='$\kappa$')
@@ -47,8 +51,8 @@ plt.savefig(fig_dir + 'kappa_map', dpi=300)
 # Load in the harmonic covariance values (Cl).
 cl = np.array(pd.read_csv(data_dir + 'full_cl.dat', delim_whitespace=True))[:, 1]
 pixwin = hp.pixwin(nside)
-cl_pw = cl[:len(pixwin)] * (pixwin ** 2)
-# cl = cl[:lmax + 1] * (pixwin[:lmax + 1] ** 2)
+# cl_pw = cl[:len(pixwin)] * (pixwin ** 2)
+cl = cl[:lmax + 1] * (pixwin[:lmax + 1] ** 2)
 
 # kd = hp.ud_grade(k, 64)
 # kd = hp.smoothing(k, lmax=128, verbose=False)
@@ -75,16 +79,31 @@ cl_pw = cl[:len(pixwin)] * (pixwin ** 2)
 # exit(0)
 
 # mask = np.load(data_dir + 'mask.npy')
-mask = np.load(data_dir + 'des_y1_mask_{0}.npy'.format(nside))
-
-inds = np.arange(hp.nside2npix(nside))[mask]
+# mask = np.load(data_dir + 'des_y1_mask_{0}.npy'.format(nside))
+#
+# inds = np.arange(hp.nside2npix(nside))[mask]
 
 # Compute the full covariance matrix for the map from Cl's.
 shift = 0.053
 # inds = np.arange(10000, dtype=np.int32)
 # inds = None
+inds = np.arange(hp.nside2npix(nside))
 ln_theory_cov, ang_sep = eunomia.sim_tools.covariance.full_cov_from_cl(cl, nside, inds)
 theory_cov = np.log(1 + ln_theory_cov / (shift ** 2))
+
+np.save(out_dir + 'cov.npy', theory_cov)
+exit(0)
+
+u,s,v = np.linalg.svd(theory_cov)
+
+# s[1000:] = 0
+#
+# theory_cov = u * np.diag(s) * s
+
+plt.clf()
+plt.semilogy(s)
+plt.show()
+exit(0)
 
 # mask = ang_sep > 0.5
 # theory_cov[mask] = 0
@@ -116,8 +135,8 @@ np.save(out_dir + 'k2g2.npy', k2g2)
 # k2g2 = k2g2[:, mask]
 # k2g2 = k2g2[mask, :]
 
-g1_obs = g1_obs[mask]
-g2_obs = g2_obs[mask]
+# g1_obs = g1_obs[mask]
+# g2_obs = g2_obs[mask]
 
 # sn_std = 0.003
 sn_std = 0.0045

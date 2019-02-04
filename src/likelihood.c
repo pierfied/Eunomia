@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <omp.h>
 #include <stdio.h>
+#include <gsl/gsl_linalg.h>
 
 SampleChain sample_map(double *y0, double *m, LikelihoodArgs args,
                        int num_samps, int num_steps, int num_burn,
@@ -23,7 +24,18 @@ SampleChain sample_map(double *y0, double *m, LikelihoodArgs args,
     hmc_args.x0 = y0;
     hmc_args.m = m;
 
+    LikelihoodArgs *largs = (LikelihoodArgs *)hmc_args.likelihood_args;
+    largs->m = malloc(sizeof(gsl_matrix_view));
+    *largs->m = gsl_matrix_view_array(largs->cov, largs->num_params, largs->num_params);
+    largs->p = gsl_permutation_alloc(largs->num_params);
+    int s;
+
+    gsl_linalg_LU_decomp(&largs->m->matrix, largs->p, &s);
+
     SampleChain chain = hmc(hmc_args);
+
+    free(largs->m);
+    gsl_permutation_free(largs->p);
 
     return chain;
 }
@@ -32,7 +44,7 @@ Hamiltonian map_likelihood(double *y, void *args_ptr) {
     LikelihoodArgs *args = (LikelihoodArgs *) args_ptr;
 
     double mu = args->mu;
-    double *inv_cov = args->inv_cov;
+    double *cov = args->cov;
     double *g1_obs = args->g1_obs;
     double *g2_obs = args->g2_obs;
     double *k2g1 = args->k2g1;
@@ -66,48 +78,68 @@ Hamiltonian map_likelihood(double *y, void *args_ptr) {
         }
     }
 
-//    printf("Num Params: %d\n", num_params);
+    gsl_vector_view b = gsl_vector_view_array(y, num_params);
+    gsl_vector *x = gsl_vector_alloc(num_params);
+
+    gsl_linalg_LU_solve(&args->m->matrix, args->p, &b.vector, x);
 
     double normal_contrib = 0;
-    double shear_contrib = 0;
-#pragma omp parallel for
-    for (int i = 0; i < num_params; i++) {
-        // Loop over neighbors.
-        double neighbor_contrib = 0;
-        double g1_grad_term = 0;
-        double g2_grad_term = 0;
-        for (int j = 0; j < num_params; j++) {
-            // Compute the neighbor contribution.
-            int ic_ind = num_params * i + j;
-            neighbor_contrib += inv_cov[ic_ind] * (y[j] - mu);
-
-            ic_ind = num_params * i + j;
-            g1_grad_term += (g1_obs[j] - g1[j]) * k2g1[ic_ind] * exp_y[i];
-            g2_grad_term += (g2_obs[j] - g2[j]) * k2g2[ic_ind] * exp_y[i];
-        }
-
-        double delta_gamma_1 = (g1_obs[i] - g1[i]);
-        double delta_gamma_2 = (g2_obs[i] - g2[i]);
-
-#pragma omp critical
-        {
-            // Compute the total contribution of this voxel to the normal.
-            normal_contrib += (y[i] - mu) * neighbor_contrib;
-
-            shear_contrib += delta_gamma_1 * delta_gamma_1 + delta_gamma_2 * delta_gamma_2;
-        }
-
-        // Compute the gradient for the voxel.
-        grad[i] = -neighbor_contrib + (g1_grad_term + g2_grad_term) / sn_var;
+    for (int i = 0; i < num_params; ++i) {
+        normal_contrib += y[i] * x->data[i];
     }
     normal_contrib *= -0.5;
-    shear_contrib *= -0.5 / sn_var;
+
+#pragma omp parallel for
+    for (int i = 0; i < num_params; ++i) {
+        grad[i] = -x->data[i];
+    }
+
+    double shear_contrib = 0;
+
+//    printf("Num Params: %d\n", num_params);
+
+//    double normal_contrib = 0;
+//    double shear_contrib = 0;
+//#pragma omp parallel for
+//    for (int i = 0; i < num_params; i++) {
+//        // Loop over neighbors.
+//        double neighbor_contrib = 0;
+//        double g1_grad_term = 0;
+//        double g2_grad_term = 0;
+//        for (int j = 0; j < num_params; j++) {
+//            // Compute the neighbor contribution.
+//            int ic_ind = num_params * i + j;
+//            neighbor_contrib += cov[ic_ind] * (y[j] - mu);
+//
+//            ic_ind = num_params * i + j;
+//            g1_grad_term += (g1_obs[j] - g1[j]) * k2g1[ic_ind] * exp_y[i];
+//            g2_grad_term += (g2_obs[j] - g2[j]) * k2g2[ic_ind] * exp_y[i];
+//        }
+//
+//        double delta_gamma_1 = (g1_obs[i] - g1[i]);
+//        double delta_gamma_2 = (g2_obs[i] - g2[i]);
+//
+//#pragma omp critical
+//        {
+//            // Compute the total contribution of this voxel to the normal.
+//            normal_contrib += (y[i] - mu) * neighbor_contrib;
+//
+//            shear_contrib += delta_gamma_1 * delta_gamma_1 + delta_gamma_2 * delta_gamma_2;
+//        }
+//
+//        // Compute the gradient for the voxel.
+//        grad[i] = -neighbor_contrib + (g1_grad_term + g2_grad_term) / sn_var;
+//    }
+//    normal_contrib *= -0.5;
+//    shear_contrib *= -0.5 / sn_var;
 
 //    printf("Normal Contrib: %f\n", normal_contrib);
 
     Hamiltonian likelihood;
     likelihood.log_likelihood = normal_contrib + shear_contrib;
     likelihood.grad = grad;
+
+    gsl_vector_free(x);
 
     return likelihood;
 }

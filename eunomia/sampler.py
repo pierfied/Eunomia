@@ -14,12 +14,14 @@ class LikelihoodArgs(ctypes.Structure):
                 ('y_inds', ctypes.POINTER(ctypes.c_int)),
                 ('shift', ctypes.c_double),
                 ('mu', ctypes.c_double),
-                ('inv_cov', ctypes.POINTER(ctypes.c_double)),
+                ('cov', ctypes.POINTER(ctypes.c_double)),
                 ('g1_obs', ctypes.POINTER(ctypes.c_double)),
                 ('g2_obs', ctypes.POINTER(ctypes.c_double)),
                 ('k2g1', ctypes.POINTER(ctypes.c_double)),
                 ('k2g2', ctypes.POINTER(ctypes.c_double)),
-                ('sn_var', ctypes.c_double)]
+                ('sn_var', ctypes.c_double),
+                ('m', ctypes.c_void_p),
+                ('p', ctypes.c_void_p)]
 
 class MapSampler:
     def __init__(self, g1_obs, g2_obs, k2g1, k2g2, shift, cov, sn_var, inds=None):
@@ -52,8 +54,6 @@ class MapSampler:
 
         epsilon *= sigma
 
-        inv_cov = np.ascontiguousarray(np.linalg.inv(self.cov).ravel(), dtype=np.double)
-
         num_params = self.cov.shape[0]
 
         if self.inds is None:
@@ -65,13 +65,14 @@ class MapSampler:
         g2_obs = np.ascontiguousarray(self.g2_obs, dtype=np.double)
         k2g1 = np.ascontiguousarray(self.k2g1.ravel(), dtype=np.double)
         k2g2 = np.ascontiguousarray(self.k2g2.ravel(), dtype=np.double)
+        cov = np.ascontiguousarray(self.cov.ravel(), dtype=np.double)
 
 
         args = LikelihoodArgs()
         args.num_params = num_params
         args.y_inds = y_inds.ctypes.data_as(ctypes.POINTER(ctypes.c_int))
         args.mu = mu
-        args.inv_cov = inv_cov.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        args.cov = cov.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.g1_obs = g1_obs.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.g2_obs = g2_obs.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.k2g1 = k2g1.ctypes.data_as(ctypes.POINTER(ctypes.c_double))

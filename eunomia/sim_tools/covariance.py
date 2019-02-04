@@ -1,6 +1,7 @@
 import numpy as np
 import healpy as hp
 import scipy.interpolate as interp
+from tqdm import tqdm
 
 
 def cov_sep_theta_from_cl(theta, cl):
@@ -29,7 +30,7 @@ def full_cov_from_cl(cl, nside, indices=None):
     theta, phi = hp.pixelfunc.pix2ang(nside, indices)
     ang_coords = np.stack([theta, phi])
     ang_sep = np.zeros([npix, npix])
-    for i in range(npix):
+    for i in tqdm(range(npix)):
         ang_sep[i, :] = hp.rotator.angdist(ang_coords[:, i], ang_coords)
 
     # Compute the full covariance matrix.

@@ -22,4 +22,4 @@ add_library(likelihood SHARED ${SOURCES})
 
 get_filename_component(LIB_PATH lib REALPATH)
 find_library(CHRONOS_LIB chronos ${LIB_PATH})
-target_link_libraries(likelihood ${CHRONOS_LIB})
+target_link_libraries(likelihood ${CHRONOS_LIB} gsl)
