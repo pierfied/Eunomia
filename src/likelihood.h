@@ -14,14 +14,16 @@ typedef struct {
     int *y_inds;
     double shift;
     double mu;
-    double *cov;
+    double *s;
+    double *v;
     double *g1_obs;
     double *g2_obs;
     double *k2g1;
     double *k2g2;
     double sn_var;
-    gsl_matrix_view *m;
-    gsl_permutation *p;
+    int num_sing_vals;
+    gsl_matrix_view *s_mat;
+    gsl_matrix_view *v_mat;
 } LikelihoodArgs;
 
 SampleChain sample_map(double *y0, double *m, LikelihoodArgs args,

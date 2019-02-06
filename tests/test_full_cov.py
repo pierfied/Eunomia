@@ -19,7 +19,7 @@ if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 
 # Determine nside and lmax.
-nside = 32
+nside = 16
 lmax = 2 * nside
 
 # Load in the convergence map.
@@ -91,17 +91,38 @@ inds = np.arange(hp.nside2npix(nside))
 ln_theory_cov, ang_sep = eunomia.sim_tools.covariance.full_cov_from_cl(cl, nside, inds)
 theory_cov = np.log(1 + ln_theory_cov / (shift ** 2))
 
-np.save(out_dir + 'cov.npy', theory_cov)
-exit(0)
-
+# np.save(out_dir + 'cov.npy', theory_cov)
+# exit(0)
+#
 u,s,v = np.linalg.svd(theory_cov)
 
 # s[1000:] = 0
 #
 # theory_cov = u * np.diag(s) * s
 
+rcond = 0.8
+good_vecs = s/s[0] > rcond
+
+s_d = s.copy()
+s_d[good_vecs] = 1 / s[good_vecs]
+s_d[~good_vecs] = 0
+
+inv_cov_m = v.T @ np.diag(s_d) @ u.T
+
+inv_cov = np.linalg.pinv(theory_cov, rcond)
+
+print(u[:,good_vecs])
+print(v[good_vecs,:])
+print(np.allclose(u[:,good_vecs], v[good_vecs,:].T))
+exit(0)
+
+print(inv_cov)
+print(inv_cov_m)
+print(np.allclose(inv_cov, inv_cov_m))
+exit(0)
+
 plt.clf()
-plt.semilogy(s)
+plt.plot(s/s[0])
 plt.show()
 exit(0)
 

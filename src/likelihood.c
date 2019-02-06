@@ -25,63 +25,63 @@ SampleChain sample_map(double *y0, double *m, LikelihoodArgs args,
     hmc_args.m = m;
 
     LikelihoodArgs *largs = (LikelihoodArgs *)hmc_args.likelihood_args;
-    largs->m = malloc(sizeof(gsl_matrix_view));
-    *largs->m = gsl_matrix_view_array(largs->cov, largs->num_params, largs->num_params);
-    largs->p = gsl_permutation_alloc(largs->num_params);
-    int s;
-
-    gsl_linalg_LU_decomp(&largs->m->matrix, largs->p, &s);
+    largs->s_mat = malloc(sizeof(gsl_matrix_view));
+    largs->v_mat = malloc(sizeof(gsl_matrix_view));
+    *largs->s_mat = gsl_matrix_view_array(largs->s, largs->num_sing_vals, largs->num_sing_vals);
+    *largs->v_mat = gsl_matrix_view_array(largs->v, largs->num_sing_vals, largs->num_params);
 
     SampleChain chain = hmc(hmc_args);
 
-    free(largs->m);
-    gsl_permutation_free(largs->p);
+    free(largs->s_mat);
+    free(largs->v_mat);
 
     return chain;
 }
 
-Hamiltonian map_likelihood(double *y, void *args_ptr) {
+Hamiltonian map_likelihood(double *params, void *args_ptr) {
     LikelihoodArgs *args = (LikelihoodArgs *) args_ptr;
 
     double mu = args->mu;
-    double *cov = args->cov;
+    double *s = args->s;
+    double *v = args->v;
     double *g1_obs = args->g1_obs;
     double *g2_obs = args->g2_obs;
     double *k2g1 = args->k2g1;
     double *k2g2 = args->k2g2;
     double sn_var = args->sn_var;
     double shift = args->shift;
+    int num_sing_vals = args->num_sing_vals;
 
     int *y_inds = args->y_inds;
 
     int num_params = args->num_params;
     double *grad = malloc(sizeof(double) * num_params);
 
-    double exp_y[num_params];
-    double g1[num_params];
-    double g2[num_params];
-#pragma omp parallel for
-    for (int i = 0; i < num_params; ++i) {
-        exp_y[i] = exp(y[i]);
-        g1[i] = 0;
-        g2[i] = 0;
-    }
+//    double exp_y[num_params];
+//    double g1[num_params];
+//    double g2[num_params];
+//#pragma omp parallel for
+//    for (int i = 0; i < num_params; ++i) {
+//        exp_y[i] = exp(y[i]);
+//        g1[i] = 0;
+//        g2[i] = 0;
+//    }
+//
+//    for (int i = 0; i < num_params; ++i) {
+//        double kappa_i = exp_y[i] - shift;
+//
+//#pragma omp parallel for
+//        for (int j = 0; j < num_params; ++j) {
+//            int mat_ind = i * num_params + j;
+//            g1[j] += k2g1[mat_ind] * kappa_i;
+//            g2[j] += k2g2[mat_ind] * kappa_i;
+//        }
+//    }
 
-    for (int i = 0; i < num_params; ++i) {
-        double kappa_i = exp_y[i] - shift;
+    gsl_vector_view param_vec = gsl_vector_view_array(params, num_sing_vals);
+    gsl_vector *y_sub_mu = gsl_vector_alloc(num_params);
 
-#pragma omp parallel for
-        for (int j = 0; j < num_params; ++j) {
-            int mat_ind = i * num_params + j;
-            g1[j] += k2g1[mat_ind] * kappa_i;
-            g2[j] += k2g2[mat_ind] * kappa_i;
-        }
-    }
-
-    gsl_vector_view b = gsl_vector_view_array(y, num_params);
-    gsl_vector *x = gsl_vector_alloc(num_params);
-
-    gsl_linalg_LU_solve(&args->m->matrix, args->p, &b.vector, x);
+    gsl_blas_dgemv(CblasNoTrans, 1, &args->v_mat->matrix, &param_vec.vector, 0, y_sub_mu);
 
     double normal_contrib = 0;
     for (int i = 0; i < num_params; ++i) {
