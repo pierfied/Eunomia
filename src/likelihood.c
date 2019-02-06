@@ -17,7 +17,7 @@ SampleChain sample_map(double *y0, double *m, LikelihoodArgs args,
     hmc_args.log_likelihood = map_likelihood;
     hmc_args.likelihood_args = &args;
     hmc_args.num_samples = num_samps;
-    hmc_args.num_params = args.num_params;
+    hmc_args.num_params = args.num_y_params;
     hmc_args.num_steps = num_steps;
     hmc_args.num_burn = num_burn;
     hmc_args.epsilon = epsilon;
@@ -25,14 +25,11 @@ SampleChain sample_map(double *y0, double *m, LikelihoodArgs args,
     hmc_args.m = m;
 
     LikelihoodArgs *largs = (LikelihoodArgs *)hmc_args.likelihood_args;
-    largs->s_mat = malloc(sizeof(gsl_matrix_view));
     largs->v_mat = malloc(sizeof(gsl_matrix_view));
-    *largs->s_mat = gsl_matrix_view_array(largs->s, largs->num_sing_vals, largs->num_sing_vals);
-    *largs->v_mat = gsl_matrix_view_array(largs->v, largs->num_sing_vals, largs->num_params);
+//    *largs->v_mat = gsl_matrix_view_array(largs->v, largs->num_sing_vals, largs->num_y_params); Do NOT TRUST YET MAYBE USE U!!!
 
     SampleChain chain = hmc(hmc_args);
 
-    free(largs->s_mat);
     free(largs->v_mat);
 
     return chain;
@@ -42,7 +39,7 @@ Hamiltonian map_likelihood(double *params, void *args_ptr) {
     LikelihoodArgs *args = (LikelihoodArgs *) args_ptr;
 
     double mu = args->mu;
-    double *s = args->s;
+    double *inv_s = args->inv_s;
     double *v = args->v;
     double *g1_obs = args->g1_obs;
     double *g2_obs = args->g2_obs;
@@ -54,8 +51,8 @@ Hamiltonian map_likelihood(double *params, void *args_ptr) {
 
     int *y_inds = args->y_inds;
 
-    int num_params = args->num_params;
-    double *grad = malloc(sizeof(double) * num_params);
+    int num_y_params = args->num_y_params;
+    double *grad = malloc(sizeof(double) * num_y_params);
 
 //    double exp_y[num_params];
 //    double g1[num_params];
@@ -78,20 +75,15 @@ Hamiltonian map_likelihood(double *params, void *args_ptr) {
 //        }
 //    }
 
-    gsl_vector_view param_vec = gsl_vector_view_array(params, num_sing_vals);
-    gsl_vector *y_sub_mu = gsl_vector_alloc(num_params);
-
-    gsl_blas_dgemv(CblasNoTrans, 1, &args->v_mat->matrix, &param_vec.vector, 0, y_sub_mu);
-
     double normal_contrib = 0;
-    for (int i = 0; i < num_params; ++i) {
-        normal_contrib += y[i] * x->data[i];
+    for (int i = 0; i < num_sing_vals; ++i) {
+        normal_contrib += params[i] * inv_s[i + num_sing_vals * i] * params[i];
     }
     normal_contrib *= -0.5;
 
 #pragma omp parallel for
-    for (int i = 0; i < num_params; ++i) {
-        grad[i] = -x->data[i];
+    for (int i = 0; i < num_sing_vals; ++i) {
+        grad[i] = - inv_s[i + num_sing_vals * i] * params[i];
     }
 
     double shear_contrib = 0;
@@ -138,8 +130,6 @@ Hamiltonian map_likelihood(double *params, void *args_ptr) {
     Hamiltonian likelihood;
     likelihood.log_likelihood = normal_contrib + shear_contrib;
     likelihood.grad = grad;
-
-    gsl_vector_free(x);
 
     return likelihood;
 }

@@ -94,37 +94,40 @@ theory_cov = np.log(1 + ln_theory_cov / (shift ** 2))
 # np.save(out_dir + 'cov.npy', theory_cov)
 # exit(0)
 #
-u,s,v = np.linalg.svd(theory_cov)
+u, s, v = np.linalg.svd(theory_cov)
 
 # s[1000:] = 0
 #
 # theory_cov = u * np.diag(s) * s
 
-rcond = 0.8
-good_vecs = s/s[0] > rcond
+rcond = 0.4
+good_vecs = s / s[0] > rcond
+
+# s = s[good_vecs]
+# v = v[:, good_vecs]
 
 s_d = s.copy()
 s_d[good_vecs] = 1 / s[good_vecs]
 s_d[~good_vecs] = 0
 
-inv_cov_m = v.T @ np.diag(s_d) @ u.T
+# inv_cov_m = v.T @ np.diag(s_d) @ u.T
+#
+# inv_cov = np.linalg.pinv(theory_cov, rcond)
 
-inv_cov = np.linalg.pinv(theory_cov, rcond)
-
-print(u[:,good_vecs])
+print(u[:, good_vecs])
 print(v[good_vecs,:])
-print(np.allclose(u[:,good_vecs], v[good_vecs,:].T))
+print(np.allclose(u[:, good_vecs], v[good_vecs, :].T))
 exit(0)
-
-print(inv_cov)
-print(inv_cov_m)
-print(np.allclose(inv_cov, inv_cov_m))
-exit(0)
-
-plt.clf()
-plt.plot(s/s[0])
-plt.show()
-exit(0)
+#
+# print(inv_cov)
+# print(inv_cov_m)
+# print(np.allclose(inv_cov, inv_cov_m))
+# exit(0)
+#
+# plt.clf()
+# plt.plot(s/s[0])
+# plt.show()
+# exit(0)
 
 # mask = ang_sep > 0.5
 # theory_cov[mask] = 0
@@ -163,7 +166,7 @@ np.save(out_dir + 'k2g2.npy', k2g2)
 sn_std = 0.0045
 sn_var = sn_std ** 2
 
-ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1, k2g2, shift, theory_cov, sn_var, inds)
+ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1, k2g2, shift, s, v, sn_var, inds)
 chain, logp = ms.sample(100, 10, 0, 1.0)
 
 # print(np.linalg.cond(theory_cov))

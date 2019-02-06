@@ -10,11 +10,11 @@
 #define LIKELIHOOD_LIKELIHOOD_H
 
 typedef struct {
-    int num_params;
+    int num_y_params;
     int *y_inds;
     double shift;
     double mu;
-    double *s;
+    double *inv_s;
     double *v;
     double *g1_obs;
     double *g2_obs;
@@ -22,7 +22,6 @@ typedef struct {
     double *k2g2;
     double sn_var;
     int num_sing_vals;
-    gsl_matrix_view *s_mat;
     gsl_matrix_view *v_mat;
 } LikelihoodArgs;
 

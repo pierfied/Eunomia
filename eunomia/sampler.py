@@ -10,27 +10,29 @@ class SampleChain(ctypes.Structure):
                 ('log_likelihoods', ctypes.POINTER(ctypes.c_double))]
 
 class LikelihoodArgs(ctypes.Structure):
-    _fields_ = [('num_params', ctypes.c_int),
+    _fields_ = [('num_y_params', ctypes.c_int),
                 ('y_inds', ctypes.POINTER(ctypes.c_int)),
                 ('shift', ctypes.c_double),
                 ('mu', ctypes.c_double),
-                ('cov', ctypes.POINTER(ctypes.c_double)),
+                ('s', ctypes.POINTER(ctypes.c_double)),
+                ('v', ctypes.POINTER(ctypes.c_double)),
                 ('g1_obs', ctypes.POINTER(ctypes.c_double)),
                 ('g2_obs', ctypes.POINTER(ctypes.c_double)),
                 ('k2g1', ctypes.POINTER(ctypes.c_double)),
                 ('k2g2', ctypes.POINTER(ctypes.c_double)),
                 ('sn_var', ctypes.c_double),
-                ('m', ctypes.c_void_p),
-                ('p', ctypes.c_void_p)]
+                ('num_sing_vals', ctypes.c_int),
+                ('v_mat', ctypes.c_void_p)]
 
 class MapSampler:
-    def __init__(self, g1_obs, g2_obs, k2g1, k2g2, shift, cov, sn_var, inds=None):
+    def __init__(self, g1_obs, g2_obs, k2g1, k2g2, shift, s, v, sn_var, inds=None):
         self.g1_obs = g1_obs
         self.g2_obs = g2_obs
         self.k2g1 = k2g1
         self.k2g2 = k2g2
         self.shift = shift
-        self.cov = cov
+        self.s = s
+        self.v = v
         self.sn_var = sn_var
         self.inds = inds
 
@@ -54,10 +56,11 @@ class MapSampler:
 
         epsilon *= sigma
 
-        num_params = self.cov.shape[0]
+        num_y_params = len(self.g1_obs)
+        num_sing_vals = len(self.s)
 
         if self.inds is None:
-            self.inds = np.arange(num_params, dtype=np.int32)
+            self.inds = np.arange(num_y_params, dtype=np.int32)
 
 
         y_inds = np.ascontiguousarray(self.inds, dtype=np.int32)
@@ -65,35 +68,41 @@ class MapSampler:
         g2_obs = np.ascontiguousarray(self.g2_obs, dtype=np.double)
         k2g1 = np.ascontiguousarray(self.k2g1.ravel(), dtype=np.double)
         k2g2 = np.ascontiguousarray(self.k2g2.ravel(), dtype=np.double)
-        cov = np.ascontiguousarray(self.cov.ravel(), dtype=np.double)
+        s = np.ascontiguousarray(1/self.s.ravel(), dtype=np.double)
+        v = np.ascontiguousarray(self.v.ravel(), dtype=np.double)
 
 
         args = LikelihoodArgs()
-        args.num_params = num_params
+        args.num_y_params = num_y_params
         args.y_inds = y_inds.ctypes.data_as(ctypes.POINTER(ctypes.c_int))
         args.mu = mu
-        args.cov = cov.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        args.s = s.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        args.v = v.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.g1_obs = g1_obs.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.g2_obs = g2_obs.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.k2g1 = k2g1.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.k2g2 = k2g2.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.sn_var = self.sn_var
+        args.num_sing_vals = num_sing_vals
 
-        y0 = np.ascontiguousarray(mu + np.random.standard_normal(num_params) * sigma)
-        y0_p = y0.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        # y0 = np.ascontiguousarray(mu + np.random.standard_normal(num_y_params) * sigma)
+        # y0_p = y0.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
 
-        m = np.ascontiguousarray(np.ones(num_params, dtype=np.double))
+        x0 = np.ascontiguousarray(np.random.standard_normal(num_sing_vals) * self.s)
+        x0_p = x0.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+
+        m = np.ascontiguousarray(np.ones(num_sing_vals, dtype=np.double))
         m_p = m.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
 
         print('Starting Sampling')
 
-        results = sampler(y0_p, m_p, args, num_samps, num_steps, num_burn, epsilon)
+        results = sampler(x0_p, m_p, args, num_samps, num_steps, num_burn, epsilon)
 
         print('Sampling Finished')
 
         print(results.accept_rate)
 
-        chain = np.array([[results.samples[i][j] for j in range(num_params)]
+        chain = np.array([[results.samples[i][j] for j in range(num_y_params)]
                           for i in range(num_samps)])
 
         likelihoods = np.array([results.log_likelihoods[i]
