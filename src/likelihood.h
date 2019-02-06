@@ -15,7 +15,7 @@ typedef struct {
     double shift;
     double mu;
     double *inv_s;
-    double *v;
+    double *u;
     double *g1_obs;
     double *g2_obs;
     double *k2g1;

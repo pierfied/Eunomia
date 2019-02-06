@@ -17,7 +17,7 @@ SampleChain sample_map(double *y0, double *m, LikelihoodArgs args,
     hmc_args.log_likelihood = map_likelihood;
     hmc_args.likelihood_args = &args;
     hmc_args.num_samples = num_samps;
-    hmc_args.num_params = args.num_y_params;
+    hmc_args.num_params = args.num_sing_vals;
     hmc_args.num_steps = num_steps;
     hmc_args.num_burn = num_burn;
     hmc_args.epsilon = epsilon;
@@ -40,7 +40,7 @@ Hamiltonian map_likelihood(double *params, void *args_ptr) {
 
     double mu = args->mu;
     double *inv_s = args->inv_s;
-    double *v = args->v;
+    double *u = args->u;
     double *g1_obs = args->g1_obs;
     double *g2_obs = args->g2_obs;
     double *k2g1 = args->k2g1;
@@ -52,7 +52,7 @@ Hamiltonian map_likelihood(double *params, void *args_ptr) {
     int *y_inds = args->y_inds;
 
     int num_y_params = args->num_y_params;
-    double *grad = malloc(sizeof(double) * num_y_params);
+    double *grad = malloc(sizeof(double) * num_sing_vals);
 
 //    double exp_y[num_params];
 //    double g1[num_params];
@@ -77,13 +77,13 @@ Hamiltonian map_likelihood(double *params, void *args_ptr) {
 
     double normal_contrib = 0;
     for (int i = 0; i < num_sing_vals; ++i) {
-        normal_contrib += params[i] * inv_s[i + num_sing_vals * i] * params[i];
+        normal_contrib += params[i] * inv_s[i] * params[i];
     }
     normal_contrib *= -0.5;
 
 #pragma omp parallel for
     for (int i = 0; i < num_sing_vals; ++i) {
-        grad[i] = - inv_s[i + num_sing_vals * i] * params[i];
+        grad[i] = - inv_s[i] * params[i];
     }
 
     double shear_contrib = 0;

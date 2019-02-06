@@ -19,7 +19,7 @@ if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 
 # Determine nside and lmax.
-nside = 16
+nside = 128
 lmax = 2 * nside
 
 # Load in the convergence map.
@@ -88,36 +88,47 @@ shift = 0.053
 # inds = np.arange(10000, dtype=np.int32)
 # inds = None
 inds = np.arange(hp.nside2npix(nside))
-ln_theory_cov, ang_sep = eunomia.sim_tools.covariance.full_cov_from_cl(cl, nside, inds)
-theory_cov = np.log(1 + ln_theory_cov / (shift ** 2))
-
+inds = np.arange(20000)
+# ln_theory_cov, ang_sep = eunomia.sim_tools.covariance.full_cov_from_cl(cl, nside, inds)
+# theory_cov = np.log(1 + ln_theory_cov / (shift ** 2))
+#
 # np.save(out_dir + 'cov.npy', theory_cov)
 # exit(0)
-#
-u, s, v = np.linalg.svd(theory_cov)
+
+theory_cov = np.load(out_dir + 'cov.npy')
+
+# u, s, v = np.linalg.svd(theory_cov)
 
 # s[1000:] = 0
 #
 # theory_cov = u * np.diag(s) * s
 
-rcond = 0.4
+u = np.load(out_dir + 'u.npy')
+s = np.load(out_dir + 's.npy')
+
+# plt.clf()
+# plt.semilogy(s/s[0])
+# plt.show()
+# exit(0)
+
+rcond = 0.03
 good_vecs = s / s[0] > rcond
 
-# s = s[good_vecs]
-# v = v[:, good_vecs]
+s = s[good_vecs]
+u = u[:, good_vecs]
 
-s_d = s.copy()
-s_d[good_vecs] = 1 / s[good_vecs]
-s_d[~good_vecs] = 0
+# s_d = s.copy()
+# s_d[good_vecs] = 1 / s[good_vecs]
+# s_d[~good_vecs] = 0
 
 # inv_cov_m = v.T @ np.diag(s_d) @ u.T
 #
 # inv_cov = np.linalg.pinv(theory_cov, rcond)
 
-print(u[:, good_vecs])
-print(v[good_vecs,:])
-print(np.allclose(u[:, good_vecs], v[good_vecs, :].T))
-exit(0)
+# print(u[:, good_vecs])
+# print(v[good_vecs,:])
+# print(np.allclose(u[:, good_vecs], v[good_vecs, :].T))
+# exit(0)
 #
 # print(inv_cov)
 # print(inv_cov_m)
@@ -148,10 +159,13 @@ exit(0)
 # plt.suptitle('Full $\kappa$ Covariance (Zoomed)')
 # plt.savefig(fig_dir + 'kappa_full_cov_zoomed', dpi=300)
 
-k2g1, k2g2 = eunomia.sim_tools.shear_conv_transformations.compute_full_conv2shear_mats(nside, lmax, inds)
+# k2g1, k2g2 = eunomia.sim_tools.shear_conv_transformations.compute_full_conv2shear_mats(nside, lmax, inds)
+#
+# np.save(out_dir + 'k2g1.npy', k2g1)
+# np.save(out_dir + 'k2g2.npy', k2g2)
 
-np.save(out_dir + 'k2g1.npy', k2g1)
-np.save(out_dir + 'k2g2.npy', k2g2)
+k2g1 = np.zeros((1,1))
+k2g2 = np.zeros((1,1))
 
 # k2g1 = k2g1[:, mask]
 # k2g1 = k2g1[mask, :]
@@ -166,11 +180,16 @@ np.save(out_dir + 'k2g2.npy', k2g2)
 sn_std = 0.0045
 sn_var = sn_std ** 2
 
-ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1, k2g2, shift, s, v, sn_var, inds)
-chain, logp = ms.sample(100, 10, 0, 1.0)
+ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1, k2g2, shift, s, u, sn_var, inds)
+chain, logp = ms.sample(10000, 10, 100, 1.0)
 
 # print(np.linalg.cond(theory_cov))
 # print(theory_cov.shape)
+
+np.save(out_dir + 'chain.npy', chain)
+np.save(out_dir + 'logp.npy', logp)
+
+chain = (u @ chain.T).T
 
 plt.clf()
 plt.plot(range(len(logp)), logp)
@@ -178,9 +197,6 @@ plt.xlabel('Sample #')
 plt.ylabel('Log-Likelihood')
 plt.tight_layout()
 plt.savefig(fig_dir + 'logp', dpi=300)
-
-np.save(out_dir + 'chain.npy', chain)
-np.save(out_dir + 'logp.npy', logp)
 
 plt.clf()
 c = ChainConsumer()

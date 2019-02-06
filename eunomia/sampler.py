@@ -14,8 +14,8 @@ class LikelihoodArgs(ctypes.Structure):
                 ('y_inds', ctypes.POINTER(ctypes.c_int)),
                 ('shift', ctypes.c_double),
                 ('mu', ctypes.c_double),
-                ('s', ctypes.POINTER(ctypes.c_double)),
-                ('v', ctypes.POINTER(ctypes.c_double)),
+                ('inv_s', ctypes.POINTER(ctypes.c_double)),
+                ('u', ctypes.POINTER(ctypes.c_double)),
                 ('g1_obs', ctypes.POINTER(ctypes.c_double)),
                 ('g2_obs', ctypes.POINTER(ctypes.c_double)),
                 ('k2g1', ctypes.POINTER(ctypes.c_double)),
@@ -25,14 +25,14 @@ class LikelihoodArgs(ctypes.Structure):
                 ('v_mat', ctypes.c_void_p)]
 
 class MapSampler:
-    def __init__(self, g1_obs, g2_obs, k2g1, k2g2, shift, s, v, sn_var, inds=None):
+    def __init__(self, g1_obs, g2_obs, k2g1, k2g2, shift, s, u, sn_var, inds=None):
         self.g1_obs = g1_obs
         self.g2_obs = g2_obs
         self.k2g1 = k2g1
         self.k2g2 = k2g2
         self.shift = shift
         self.s = s
-        self.v = v
+        self.u = u
         self.sn_var = sn_var
         self.inds = inds
 
@@ -50,11 +50,11 @@ class MapSampler:
         # jacobian = np.diag(1/(1 + self.kappa_obs))
         # self.cov = np.matmul(np.matmul(jacobian, self.cov), jacobian)
 
-        var = self.cov[0,0]
-        sigma = np.sqrt(var)
-        mu = -0.5 * var + np.log(self.shift)
-
-        epsilon *= sigma
+        # var = self.cov[0,0]
+        # sigma = np.sqrt(var)
+        # mu = -0.5 * var + np.log(self.shift)
+        #
+        # epsilon *= sigma
 
         num_y_params = len(self.g1_obs)
         num_sing_vals = len(self.s)
@@ -68,16 +68,21 @@ class MapSampler:
         g2_obs = np.ascontiguousarray(self.g2_obs, dtype=np.double)
         k2g1 = np.ascontiguousarray(self.k2g1.ravel(), dtype=np.double)
         k2g2 = np.ascontiguousarray(self.k2g2.ravel(), dtype=np.double)
-        s = np.ascontiguousarray(1/self.s.ravel(), dtype=np.double)
-        v = np.ascontiguousarray(self.v.ravel(), dtype=np.double)
+        inv_s = np.ascontiguousarray(1/self.s.ravel(), dtype=np.double)
+        u = np.ascontiguousarray(self.u.ravel(), dtype=np.double)
+
+        # print(s)
+        # print(s.shape)
+        # print(u.shape)
+        # exit(0)
 
 
         args = LikelihoodArgs()
         args.num_y_params = num_y_params
         args.y_inds = y_inds.ctypes.data_as(ctypes.POINTER(ctypes.c_int))
-        args.mu = mu
-        args.s = s.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
-        args.v = v.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        # args.mu = mu
+        args.inv_s = inv_s.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        args.v = u.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.g1_obs = g1_obs.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.g2_obs = g2_obs.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.k2g1 = k2g1.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
@@ -88,7 +93,7 @@ class MapSampler:
         # y0 = np.ascontiguousarray(mu + np.random.standard_normal(num_y_params) * sigma)
         # y0_p = y0.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
 
-        x0 = np.ascontiguousarray(np.random.standard_normal(num_sing_vals) * self.s)
+        x0 = np.ascontiguousarray(np.random.standard_normal(num_sing_vals) * np.sqrt(self.s))
         x0_p = x0.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
 
         m = np.ascontiguousarray(np.ones(num_sing_vals, dtype=np.double))
@@ -102,7 +107,7 @@ class MapSampler:
 
         print(results.accept_rate)
 
-        chain = np.array([[results.samples[i][j] for j in range(num_y_params)]
+        chain = np.array([[results.samples[i][j] for j in range(num_sing_vals)]
                           for i in range(num_samps)])
 
         likelihoods = np.array([results.log_likelihoods[i]
