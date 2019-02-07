@@ -88,7 +88,7 @@ shift = 0.053
 # inds = np.arange(10000, dtype=np.int32)
 # inds = None
 inds = np.arange(hp.nside2npix(nside))
-inds = np.arange(20000)
+inds = np.arange(10000)
 # ln_theory_cov, ang_sep = eunomia.sim_tools.covariance.full_cov_from_cl(cl, nside, inds)
 # theory_cov = np.log(1 + ln_theory_cov / (shift ** 2))
 #
