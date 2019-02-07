@@ -52,8 +52,8 @@ def compute_full_conv2shear_mats(nside, lmax, inds):
 
         g1, g2 = conv2shear(k, lmax)
 
-        A1[mat_ind, :] = g1[inds]
-        A2[mat_ind, :] = g2[inds]
+        A1[:, mat_ind] = g1[inds]
+        A2[:, mat_ind] = g2[inds]
 
         mat_ind += 1
 

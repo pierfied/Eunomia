@@ -25,12 +25,13 @@ class LikelihoodArgs(ctypes.Structure):
                 ('v_mat', ctypes.c_void_p)]
 
 class MapSampler:
-    def __init__(self, g1_obs, g2_obs, k2g1, k2g2, shift, s, u, sn_var, inds=None):
+    def __init__(self, g1_obs, g2_obs, k2g1, k2g2, shift, mu, s, u, sn_var, inds=None):
         self.g1_obs = g1_obs
         self.g2_obs = g2_obs
         self.k2g1 = k2g1
         self.k2g2 = k2g2
         self.shift = shift
+        self.mu = mu
         self.s = s
         self.u = u
         self.sn_var = sn_var
@@ -80,9 +81,9 @@ class MapSampler:
         args = LikelihoodArgs()
         args.num_y_params = num_y_params
         args.y_inds = y_inds.ctypes.data_as(ctypes.POINTER(ctypes.c_int))
-        # args.mu = mu
+        args.mu = self.mu
         args.inv_s = inv_s.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
-        args.v = u.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        args.u = u.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.g1_obs = g1_obs.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.g2_obs = g2_obs.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.k2g1 = k2g1.ctypes.data_as(ctypes.POINTER(ctypes.c_double))

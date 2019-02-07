@@ -48,10 +48,51 @@ Hamiltonian map_likelihood(double *params, void *args_ptr) {
     double sn_var = args->sn_var;
     double shift = args->shift;
     int num_sing_vals = args->num_sing_vals;
-
-    int *y_inds = args->y_inds;
-
     int num_y_params = args->num_y_params;
+
+    printf("here 0\n");
+
+    double exp_y[num_y_params];
+#pragma omp parallel for
+    for (int i = 0; i < num_y_params; ++i) {
+        double y_i = 0;
+
+        for (int j = 0; j < num_sing_vals; ++j) {
+            y_i += u[i * num_sing_vals + j] * params[j];
+        }
+
+        exp_y[i] = exp(y_i + mu);
+    }
+
+    printf("here 1\n");
+
+    double g1[num_y_params];
+    double g2[num_y_params];
+    double delta_g1[num_y_params];
+    double delta_g2[num_y_params];
+#pragma omp parallel for
+    for (int i = 0; i < num_y_params; ++i) {
+        double g1_i = 0;
+        double g2_i = 0;
+
+        for (int j = 0; j < num_y_params; ++j) {
+            double kappa_j = exp_y[j] - shift;
+
+            int ind = i * num_y_params + j;
+
+            g1_i += k2g1[ind] * kappa_j;
+            g2_i += k2g2[ind] * kappa_j;
+        }
+
+        g1[i] = g1_i;
+        g2[i] = g2_i;
+
+        delta_g1[i] = g1_i - g1_obs[i];
+        delta_g2[i] = g2_i - g2_obs[i];
+    }
+
+    printf("here 2\n");
+
     double *grad = malloc(sizeof(double) * num_sing_vals);
 
 //    double exp_y[num_params];
@@ -81,12 +122,37 @@ Hamiltonian map_likelihood(double *params, void *args_ptr) {
     }
     normal_contrib *= -0.5;
 
+    double shear_contrib = 0;
+    for (int i = 0; i < num_y_params; ++i) {
+        shear_contrib += delta_g1[i] * delta_g1[i] + delta_g2[i] * delta_g2[i];
+    }
+    shear_contrib /= -sn_var;
+
+    printf("here 3\n");
+
 #pragma omp parallel for
     for (int i = 0; i < num_sing_vals; ++i) {
         grad[i] = - inv_s[i] * params[i];
-    }
 
-    double shear_contrib = 0;
+        double grad_shear_contrib = 0;
+        for (int j = 0; j < num_y_params; ++j) {
+            double dg1_j_dx_i = 0;
+            double dg2_j_dx_i = 0;
+
+            for (int k = 0; k < num_y_params; ++k) {
+                int k2g_ind = j * num_y_params + k;
+                int u_ind = k * num_sing_vals + i;
+
+                dg1_j_dx_i += k2g1[k2g_ind] * exp_y[k] * u[u_ind];
+                dg2_j_dx_i += k2g2[k2g_ind] * exp_y[k] * u[u_ind];
+            }
+
+            grad_shear_contrib += delta_g1[j] * dg1_j_dx_i + delta_g2[j] * dg2_j_dx_i;
+        }
+        grad_shear_contrib /= - sn_var;
+
+        grad[i] += grad_shear_contrib;
+    }
 
 //    printf("Num Params: %d\n", num_params);
 
