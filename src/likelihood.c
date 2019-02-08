@@ -50,8 +50,6 @@ Hamiltonian map_likelihood(double *params, void *args_ptr) {
     int num_sing_vals = args->num_sing_vals;
     int num_y_params = args->num_y_params;
 
-    printf("here 0\n");
-
     double exp_y[num_y_params];
 #pragma omp parallel for
     for (int i = 0; i < num_y_params; ++i) {
@@ -63,8 +61,6 @@ Hamiltonian map_likelihood(double *params, void *args_ptr) {
 
         exp_y[i] = exp(y_i + mu);
     }
-
-    printf("here 1\n");
 
     double g1[num_y_params];
     double g2[num_y_params];
@@ -90,8 +86,6 @@ Hamiltonian map_likelihood(double *params, void *args_ptr) {
         delta_g1[i] = g1_i - g1_obs[i];
         delta_g2[i] = g2_i - g2_obs[i];
     }
-
-    printf("here 2\n");
 
     double *grad = malloc(sizeof(double) * num_sing_vals);
 
@@ -128,30 +122,51 @@ Hamiltonian map_likelihood(double *params, void *args_ptr) {
     }
     shear_contrib /= -sn_var;
 
-    printf("here 3\n");
+
+    double df1_dg1[num_y_params];
+    double df2_dg2[num_y_params];
+#pragma omp parallel for
+    for (int i = 0; i < num_y_params; ++i) {
+        df1_dg1[i] = - delta_g1[i] / sn_var;
+        df2_dg2[i] = - delta_g2[i] / sn_var;
+    }
+    
+    double df1_dy[num_y_params];
+    double df2_dy[num_y_params];
+#pragma omp parallel for
+    for (int i = 0; i < num_y_params; ++i) {
+        df1_dy[i] = 0;
+        df2_dy[i] = 0;
+
+        for (int j = 0; j < num_y_params; ++j) {
+            int ind = j * num_y_params + i;
+
+            df1_dy[i] += df1_dg1[j] * k2g1[ind];
+            df2_dy[i] += df2_dg2[j] * k2g2[ind];
+        }
+
+        df1_dy[i] *= exp_y[i];
+        df2_dy[i] *= exp_y[i];
+    }
+
+    double df1_dx[num_sing_vals];
+    double df2_dx[num_sing_vals];
+#pragma omp parallel for
+    for (int i = 0; i < num_sing_vals; ++i) {
+        df1_dx[i] = 0;
+        df2_dx[i] = 0;
+
+        for (int j = 0; j < num_y_params; ++j) {
+            int ind = j * num_sing_vals + i;
+
+            df1_dx[i] += df1_dy[j] * u[ind];
+            df2_dx[i] += df2_dy[j] * u[ind];
+        }
+    }
 
 #pragma omp parallel for
     for (int i = 0; i < num_sing_vals; ++i) {
-        grad[i] = - inv_s[i] * params[i];
-
-        double grad_shear_contrib = 0;
-        for (int j = 0; j < num_y_params; ++j) {
-            double dg1_j_dx_i = 0;
-            double dg2_j_dx_i = 0;
-
-            for (int k = 0; k < num_y_params; ++k) {
-                int k2g_ind = j * num_y_params + k;
-                int u_ind = k * num_sing_vals + i;
-
-                dg1_j_dx_i += k2g1[k2g_ind] * exp_y[k] * u[u_ind];
-                dg2_j_dx_i += k2g2[k2g_ind] * exp_y[k] * u[u_ind];
-            }
-
-            grad_shear_contrib += delta_g1[j] * dg1_j_dx_i + delta_g2[j] * dg2_j_dx_i;
-        }
-        grad_shear_contrib /= - sn_var;
-
-        grad[i] += grad_shear_contrib;
+        grad[i] = - inv_s[i] * params[i] + df1_dx[i] + df2_dx[i];
     }
 
 //    printf("Num Params: %d\n", num_params);

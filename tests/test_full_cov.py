@@ -89,10 +89,10 @@ shift = 0.053
 # inds = None
 inds = np.arange(hp.nside2npix(nside))
 # inds = np.arange(10000)
-# ln_theory_cov, ang_sep = eunomia.sim_tools.covariance.full_cov_from_cl(cl, nside, inds)
-# theory_cov = np.log(1 + ln_theory_cov / (shift ** 2))
-#
-# np.save(out_dir + 'cov.npy', theory_cov)
+ln_theory_cov, ang_sep = eunomia.sim_tools.covariance.full_cov_from_cl(cl, nside, inds)
+theory_cov = np.log(1 + ln_theory_cov / (shift ** 2))
+
+np.save(out_dir + 'cov.npy', theory_cov)
 # exit(0)
 
 theory_cov = np.load(out_dir + 'cov.npy')
@@ -101,7 +101,7 @@ var = theory_cov[0,0]
 sigma = np.sqrt(var)
 mu = -0.5 * var + np.log(shift)
 
-# u, s, vh = np.linalg.svd(theory_cov)
+u, s, vh = np.linalg.svd(theory_cov)
 
 # s[1000:] = 0
 #
@@ -120,8 +120,8 @@ mu = -0.5 * var + np.log(shift)
 # s = s[good_vecs]
 # u = u[:, good_vecs]
 #
-# np.save(out_dir + 'u.npy', u)
-# np.save(out_dir + 's.npy', s)
+np.save(out_dir + 'u.npy', u)
+np.save(out_dir + 's.npy', s)
 # exit(0)
 
 u = np.load(out_dir + 'u.npy')
@@ -169,7 +169,7 @@ s = np.load(out_dir + 's.npy')
 # plt.suptitle('Full $\kappa$ Covariance (Zoomed)')
 # plt.savefig(fig_dir + 'kappa_full_cov_zoomed', dpi=300)
 
-# k2g1, k2g2 = eunomia.sim_tools.shear_conv_transformations.compute_full_conv2shear_mats(nside, lmax, inds)
+k2g1, k2g2 = eunomia.sim_tools.shear_conv_transformations.compute_full_conv2shear_mats(nside, lmax, inds)
 
 # g1_t, g2_t = eunomia.sim_tools.shear_conv_transformations.conv2shear(k, lmax)
 # g1_l = k2g1 @ k
@@ -179,8 +179,8 @@ s = np.load(out_dir + 's.npy')
 # print(np.allclose(g2_t, g2_l))
 # exit(0)
 
-# np.save(out_dir + 'k2g1.npy', k2g1)
-# np.save(out_dir + 'k2g2.npy', k2g2)
+np.save(out_dir + 'k2g1.npy', k2g1)
+np.save(out_dir + 'k2g2.npy', k2g2)
 # exit(0)
 
 k2g1 = np.load(out_dir + 'k2g1.npy')
@@ -203,7 +203,7 @@ sn_std = 0.003
 sn_var = sn_std ** 2
 
 ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1, k2g2, shift, mu, s, u, sn_var, inds)
-chain, logp = ms.sample(1000, 10, 0, 1.0)
+chain, logp = ms.sample(1000, 10, 100, 1.0)
 
 # print(np.linalg.cond(theory_cov))
 # print(theory_cov.shape)
