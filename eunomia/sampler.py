@@ -97,7 +97,8 @@ class MapSampler:
         x0 = np.ascontiguousarray(np.random.standard_normal(num_sing_vals) * np.sqrt(self.s))
         x0_p = x0.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
 
-        m = np.ascontiguousarray(np.ones(num_sing_vals, dtype=np.double))
+        # m = np.ascontiguousarray(np.ones(num_sing_vals, dtype=np.double))
+        m = np.ascontiguousarray(1/np.sqrt(self.s))
         m_p = m.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
 
         print('Starting Sampling')

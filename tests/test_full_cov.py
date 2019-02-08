@@ -111,15 +111,20 @@ u, s, vh = np.linalg.svd(theory_cov)
 
 # plt.clf()
 # plt.plot(s/s[0])
+# plt.savefig(fig_dir + 's.png', dpi=300)
 # plt.show()
 # exit(0)
 
-# rcond = 0.4
-# good_vecs = s / s[0] > rcond
-#
-# s = s[good_vecs]
-# u = u[:, good_vecs]
-#
+rcond = 0.4
+# rcond = 0.6
+good_vecs = s / s[0] > rcond
+
+s = s[good_vecs]
+u = u[:, good_vecs]
+
+# s = s[:500]
+# u = u[:,:500]
+
 np.save(out_dir + 'u.npy', u)
 np.save(out_dir + 's.npy', s)
 # exit(0)
@@ -199,11 +204,12 @@ k2g2 = np.load(out_dir + 'k2g2.npy')
 # g2_obs = g2_obs[mask]
 
 sn_std = 0.003
+# sn_std = 0.0014
 # sn_std = 0.0045
 sn_var = sn_std ** 2
 
 ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1, k2g2, shift, mu, s, u, sn_var, inds)
-chain, logp = ms.sample(1000, 10, 100, 1.0)
+chain, logp = ms.sample(10000, 1, 1000, 1.0)
 
 # print(np.linalg.cond(theory_cov))
 # print(theory_cov.shape)
