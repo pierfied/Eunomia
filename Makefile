@@ -5,7 +5,7 @@ dirs:
 	mkdir lib
 
 chronos:
-	git clone https://github.com/pierfied/Chronos.git && \
+	git clone https://github.com/pierfied/Chronos.git --branch adaptive_burn_samp && \
 	cd ./Chronos && \
 	pwd && \
 	cmake . && \
