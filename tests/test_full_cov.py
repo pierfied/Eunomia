@@ -83,11 +83,14 @@ cl = cl[:lmax + 1] * (pixwin[:lmax + 1] ** 2)
 #
 # inds = np.arange(hp.nside2npix(nside))[mask]
 
+bmask = np.load(data_dir + 'bmask.npy')
+mask = np.load(data_dir + 'des_y1_mask_{0}.npy'.format(nside))
+
 # Compute the full covariance matrix for the map from Cl's.
 shift = 0.053
 # inds = np.arange(10000, dtype=np.int32)
 # inds = None
-inds = np.arange(hp.nside2npix(nside))
+inds = np.arange(hp.nside2npix(nside))[bmask]
 # inds = np.arange(10000)
 # ln_theory_cov, ang_sep = eunomia.sim_tools.covariance.full_cov_from_cl(cl, nside, inds)
 # theory_cov = np.log(1 + ln_theory_cov / (shift ** 2))
@@ -203,13 +206,14 @@ k2g2 = np.load(out_dir + 'k2g2.npy')
 # g1_obs = g1_obs[mask]
 # g2_obs = g2_obs[mask]
 
-sn_std = 0.003
+# sn_std = 0.003
 # sn_std = 0.0014
 # sn_std = 0.0045
+sn_std = 0.009
 sn_var = sn_std ** 2
 
-ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1, k2g2, shift, mu, s, u, sn_var, inds)
-chain, logp = ms.sample(50, 1, 0.5, 1000, 1, 0.25)
+ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1, k2g2, shift, mu, s, u, sn_var, inds, mask)
+chain, logp = ms.sample(50, 1, 0.25, 1000, 1, 0.25)
 
 # print(np.linalg.cond(theory_cov))
 # print(theory_cov.shape)

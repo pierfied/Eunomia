@@ -22,11 +22,12 @@ class LikelihoodArgs(ctypes.Structure):
                 ('g2_obs', ctypes.POINTER(ctypes.c_double)),
                 ('k2g1', ctypes.POINTER(ctypes.c_double)),
                 ('k2g2', ctypes.POINTER(ctypes.c_double)),
-                ('sn_var', ctypes.c_double)]
+                ('sn_var', ctypes.c_double),
+                ('mask', ctypes.POINTER(ctypes.c_double))]
 
 
 class MapSampler:
-    def __init__(self, g1_obs, g2_obs, k2g1, k2g2, shift, mu, s, u, sn_var, inds=None):
+    def __init__(self, g1_obs, g2_obs, k2g1, k2g2, shift, mu, s, u, sn_var, inds, mask):
         self.g1_obs = g1_obs
         self.g2_obs = g2_obs
         self.k2g1 = k2g1
@@ -37,6 +38,7 @@ class MapSampler:
         self.u = u
         self.sn_var = sn_var
         self.inds = inds
+        self.mask = mask
 
     def sample(self, num_burn, num_burn_steps, burn_epsilon, num_samps, num_samp_steps, samp_epsilon):
         lib_path = os.path.join(os.path.dirname(__file__), '../lib/liblikelihood.so')
@@ -71,6 +73,7 @@ class MapSampler:
         k2g2 = np.ascontiguousarray(self.k2g2.ravel(), dtype=np.double)
         inv_s = np.ascontiguousarray(1 / self.s.ravel(), dtype=np.double)
         u = np.ascontiguousarray(self.u.ravel(), dtype=np.double)
+        mask = np.ascontiguousarray(self.mask.ravel(), dtype=np.double)
 
         # print(s)
         # print(s.shape)
@@ -88,6 +91,7 @@ class MapSampler:
         args.k2g2 = k2g2.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.sn_var = self.sn_var
         args.num_sing_vecs = num_sing_vecs
+        args.mask = mask.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
 
         # y0 = np.ascontiguousarray(mu + np.random.standard_normal(num_y_params) * sigma)
         # y0_p = y0.ctypes.data_as(ctypes.POINTER(ctypes.c_double))

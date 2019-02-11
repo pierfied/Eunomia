@@ -46,6 +46,7 @@ Hamiltonian map_likelihood(double *params, void *args_ptr) {
     double shift = args->shift;
     int num_sing_vecs = args->num_sing_vecs;
     int num_pix = args->num_pix;
+    double *mask = args->mask;
 
     double exp_y[num_pix];
 #pragma omp parallel for
@@ -94,7 +95,7 @@ Hamiltonian map_likelihood(double *params, void *args_ptr) {
 
     double shear_contrib = 0;
     for (int i = 0; i < num_pix; ++i) {
-        shear_contrib += delta_g1[i] * delta_g1[i] + delta_g2[i] * delta_g2[i];
+        shear_contrib += mask[i] * (delta_g1[i] * delta_g1[i] + delta_g2[i] * delta_g2[i]);
     }
     shear_contrib /= -2 * sn_var;
 
@@ -103,8 +104,8 @@ Hamiltonian map_likelihood(double *params, void *args_ptr) {
     double df2_dg2[num_pix];
 #pragma omp parallel for
     for (int i = 0; i < num_pix; ++i) {
-        df1_dg1[i] = -delta_g1[i] / sn_var;
-        df2_dg2[i] = -delta_g2[i] / sn_var;
+        df1_dg1[i] = -mask[i] * delta_g1[i] / sn_var;
+        df2_dg2[i] = -mask[i] * delta_g2[i] / sn_var;
     }
 
     double df1_dy[num_pix];

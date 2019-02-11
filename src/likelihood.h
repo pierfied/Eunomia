@@ -21,6 +21,7 @@ typedef struct {
     double *k2g1;
     double *k2g2;
     double sn_var;
+    double *mask;
 } LikelihoodArgs;
 
 SampleChain sample_map(double *x0, double *m, double *sigma_p, LikelihoodArgs args,
