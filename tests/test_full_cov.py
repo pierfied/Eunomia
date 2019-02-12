@@ -19,83 +19,34 @@ if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 
 # Determine nside and lmax.
-nside = 128
+nside = 16
 lmax = 2 * nside
+npix = hp.nside2npix(nside)
 
 # Load in the convergence map.
 kappas = np.load(data_dir + 'kappas_{0}_{1}.npy'.format(nside, lmax))
-# kappas_noise = np.load(data_dir + 'kappas_noise_{0}_{1}.npy'.format(nside, lmax))
+kappas_noise = np.load(data_dir + 'kappas_noise_{0}_{1}.npy'.format(nside, lmax))
 gammas_noise = np.load(data_dir + 'gammas_noise_{0}_{1}.npy'.format(nside, lmax))
-# kappas_noise = kappas.copy()
-
-# nside = 16
-# lmax = 2 * nside
-
-# kappas = hp.ud_grade(kappas.T, nside).T
-# kappas_noise = kappas.copy()
 
 k = kappas[:, 0]
-# kn = kappas_noise[:, 0]
-# # g1_obs, g2_obs = eunomia.sim_tools.shear_conv_transformations.conv2shear(k, lmax)
+kn = kappas_noise[:, 0]
 g1_obs = gammas_noise[0, :, 0]
 g2_obs = gammas_noise[1, :, 0]
 
-# kn = k.copy()
-# g1_obs = k.copy()
-# g2_obs = k.copy()
-
-# Plot the convergence map.
-# hp.mollview(kn, title='Flask Sim Convergence Map $n_{side}=%d$, $\ell_{max}=%d$' % (nside, lmax), unit='$\kappa$')
-# plt.savefig(fig_dir + 'kappa_map', dpi=300)
+mask = np.load(data_dir + 'des_y1_mask_{0}.npy'.format(nside))
 
 # Load in the harmonic covariance values (Cl).
 cl = np.array(pd.read_csv(data_dir + 'full_cl.dat', delim_whitespace=True))[:, 1]
 pixwin = hp.pixwin(nside)
-# cl_pw = cl[:len(pixwin)] * (pixwin ** 2)
 cl = cl[:lmax + 1] * (pixwin[:lmax + 1] ** 2)
-
-# kd = hp.ud_grade(k, 64)
-# kd = hp.smoothing(k, lmax=128, verbose=False)
-#
-# plt.clf()
-# plt.plot(hp.anafast(kd, lmax=128))
-# pixwin = hp.pixwin(64)
-# cl = cl[:129] * (pixwin[:129] ** 2)
-# plt.plot(cl)
-# plt.show()
-#
-# exit(0)
-#
-# thetas = np.linspace(0,np.pi/10,1000)
-#
-# cov_pw = eunomia.sim_tools.covariance.cov_sep_theta_from_cl(thetas, cl_pw)
-# cov = eunomia.sim_tools.covariance.cov_sep_theta_from_cl(thetas, cl)
-#
-# plt.clf()
-# plt.plot(thetas, cov/cov[0])
-# plt.plot(thetas, cov_pw/cov_pw[0])
-# plt.axvline(hp.nside2resol(nside), c='r')
-# plt.show()
-# exit(0)
-
-# mask = np.load(data_dir + 'mask.npy')
-# mask = np.load(data_dir + 'des_y1_mask_{0}.npy'.format(nside))
-#
-# inds = np.arange(hp.nside2npix(nside))[mask]
-
-bmask = np.load(data_dir + 'bmask.npy')
-mask = np.load(data_dir + 'des_y1_mask_{0}.npy'.format(nside))
 
 # Compute the full covariance matrix for the map from Cl's.
 shift = 0.053
-# inds = np.arange(10000, dtype=np.int32)
-# inds = None
-inds = np.arange(hp.nside2npix(nside))[bmask]
-# inds = np.arange(10000)
-# ln_theory_cov, ang_sep = eunomia.sim_tools.covariance.full_cov_from_cl(cl, nside, inds)
-# theory_cov = np.log(1 + ln_theory_cov / (shift ** 2))
-#
-# np.save(out_dir + 'cov.npy', theory_cov)
+inds = np.arange(npix)[mask]
+ln_theory_cov, ang_sep = eunomia.sim_tools.covariance.full_cov_from_cl(cl, nside, inds)
+theory_cov = np.log(1 + ln_theory_cov / (shift ** 2))
+
+np.save(out_dir + 'cov.npy', theory_cov)
 # exit(0)
 
 theory_cov = np.load(out_dir + 'cov.npy')
@@ -104,13 +55,7 @@ var = theory_cov[0,0]
 sigma = np.sqrt(var)
 mu = -0.5 * var + np.log(shift)
 
-# u, s, vh = np.linalg.svd(theory_cov)
-
-# s[1000:] = 0
-#
-# theory_cov = u * np.diag(s) * s
-
-
+u, s, vh = np.linalg.svd(theory_cov)
 
 # plt.clf()
 # plt.plot(s/s[0])
@@ -118,102 +63,32 @@ mu = -0.5 * var + np.log(shift)
 # plt.show()
 # exit(0)
 
-# rcond = 0.4
-# # rcond = 0.6
-# good_vecs = s / s[0] > rcond
-#
-# s = s[good_vecs]
-# u = u[:, good_vecs]
-#
-# # s = s[:500]
-# # u = u[:,:500]
-#
-# np.save(out_dir + 'u.npy', u)
-# np.save(out_dir + 's.npy', s)
+rcond = 0.05
+good_vecs = s / s[0] > rcond
+
+s = s[good_vecs]
+u = u[:, good_vecs]
+
+np.save(out_dir + 'u.npy', u)
+np.save(out_dir + 's.npy', s)
 # exit(0)
 
 u = np.load(out_dir + 'u.npy')
 s = np.load(out_dir + 's.npy')
 
-# s_d = s.copy()
-# s_d[good_vecs] = 1 / s[good_vecs]
-# s_d[~good_vecs] = 0
-
-# inv_cov_m = v.T @ np.diag(s_d) @ u.T
+noise_cov = np.cov(kappas_noise[mask, :])
 #
-# inv_cov = np.linalg.pinv(theory_cov, rcond)
-
-# print(u[:, good_vecs])
-# print(v[good_vecs,:])
-# print(np.allclose(u[:, good_vecs], v[good_vecs, :].T))
-# exit(0)
-#
-# print(inv_cov)
-# print(inv_cov_m)
-# print(np.allclose(inv_cov, inv_cov_m))
-# exit(0)
+# _, s_noise, _ = np.linalg.svd(noise_cov)
 #
 # plt.clf()
-# plt.plot(s/s[0])
+# plt.plot(s_noise/s_noise[0])
 # plt.show()
 # exit(0)
 
-# mask = ang_sep > 0.5
-# theory_cov[mask] = 0
+inv_noise_cov = np.linalg.pinv(noise_cov, rcond)
 
-# print(np.linalg.cond(theory_cov))
-# print(theory_cov.shape)
-# exit(0)
-
-# # Plot the covariance matrix.
-# plt.matshow(theory_cov, norm=matplotlib.colors.LogNorm())
-# cbar = plt.colorbar()
-# plt.suptitle('Full $\kappa$ Covariance')
-# plt.savefig(fig_dir + 'kappa_full_cov', dpi=300)
-#
-# # Show a zoomed in plot of the matrix to show structure.
-# plt.matshow(cov[:100, :100], norm=matplotlib.colors.LogNorm())
-# plt.colorbar()
-# plt.suptitle('Full $\kappa$ Covariance (Zoomed)')
-# plt.savefig(fig_dir + 'kappa_full_cov_zoomed', dpi=300)
-
-k2g1, k2g2 = eunomia.sim_tools.shear_conv_transformations.compute_full_conv2shear_mats(nside, lmax, mask, bmask)
-
-# g1_t, g2_t = eunomia.sim_tools.shear_conv_transformations.conv2shear(k, lmax)
-# g1_l = k2g1 @ k
-# g2_l = k2g2 @ k
-#
-# print(np.allclose(g1_t, g1_l))
-# print(np.allclose(g2_t, g2_l))
-# exit(0)
-
-# np.save(out_dir + 'k2g1.npy', k2g1)
-# np.save(out_dir + 'k2g2.npy', k2g2)
-# exit(0)
-
-k2g1 = np.load(out_dir + 'k2g1.npy')
-k2g2 = np.load(out_dir + 'k2g2.npy')
-
-# k2g1 = np.zeros((1,1))
-# k2g2 = np.zeros((1,1))
-
-# k2g1 = k2g1[:, mask]
-# k2g1 = k2g1[mask, :]
-#
-# k2g2 = k2g2[:, mask]
-# k2g2 = k2g2[mask, :]
-
-g1_obs = g1_obs[mask]
-g2_obs = g2_obs[mask]
-
-# sn_std = 0.003
-# sn_std = 0.0014
-# sn_std = 0.0045
-sn_std = 0.009
-sn_var = sn_std ** 2
-
-ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1, k2g2, shift, mu, s, u, sn_var, inds)
-chain, logp = ms.sample(50, 1, 0.25, 1000, 1, 0.25)
+ms = eunomia.MapSampler(kn, shift, mu, s, u, inv_noise_cov)
+chain, logp = ms.sample(50, 1, 0.5, 10000, 1, 0.5)
 
 # print(np.linalg.cond(theory_cov))
 # print(theory_cov.shape)
@@ -221,7 +96,7 @@ chain, logp = ms.sample(50, 1, 0.25, 1000, 1, 0.25)
 np.save(out_dir + 'chain.npy', chain)
 np.save(out_dir + 'logp.npy', logp)
 
-chain = (u @ chain.T).T
+chain = chain @ u.T
 
 plt.clf()
 plt.plot(range(len(logp)), logp)

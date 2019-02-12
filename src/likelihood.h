@@ -11,17 +11,13 @@
 
 typedef struct {
     int num_sing_vecs;
+    int npix;
     double shift;
     double mu;
     double *inv_s;
     double *u;
-    double *g1_obs;
-    double *g2_obs;
-    double *k2g1;
-    double *k2g2;
-    double sn_var;
-    int mask_npix;
-    int buffered_npix;
+    double *k_obs;
+    double *inv_noise_cov;
 } LikelihoodArgs;
 
 SampleChain sample_map(double *x0, double *m, double *sigma_p, LikelihoodArgs args,
