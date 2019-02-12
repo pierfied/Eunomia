@@ -19,7 +19,7 @@ if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 
 # Determine nside and lmax.
-nside = 16
+nside = 128
 lmax = 2 * nside
 
 # Load in the convergence map.
@@ -177,7 +177,7 @@ s = np.load(out_dir + 's.npy')
 # plt.suptitle('Full $\kappa$ Covariance (Zoomed)')
 # plt.savefig(fig_dir + 'kappa_full_cov_zoomed', dpi=300)
 
-# k2g1, k2g2 = eunomia.sim_tools.shear_conv_transformations.compute_full_conv2shear_mats(nside, lmax, inds)
+k2g1, k2g2 = eunomia.sim_tools.shear_conv_transformations.compute_full_conv2shear_mats(nside, lmax, mask, bmask)
 
 # g1_t, g2_t = eunomia.sim_tools.shear_conv_transformations.conv2shear(k, lmax)
 # g1_l = k2g1 @ k
@@ -203,8 +203,8 @@ k2g2 = np.load(out_dir + 'k2g2.npy')
 # k2g2 = k2g2[:, mask]
 # k2g2 = k2g2[mask, :]
 
-# g1_obs = g1_obs[mask]
-# g2_obs = g2_obs[mask]
+g1_obs = g1_obs[mask]
+g2_obs = g2_obs[mask]
 
 # sn_std = 0.003
 # sn_std = 0.0014
@@ -212,7 +212,7 @@ k2g2 = np.load(out_dir + 'k2g2.npy')
 sn_std = 0.009
 sn_var = sn_std ** 2
 
-ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1, k2g2, shift, mu, s, u, sn_var, inds, mask)
+ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1, k2g2, shift, mu, s, u, sn_var, inds)
 chain, logp = ms.sample(50, 1, 0.25, 1000, 1, 0.25)
 
 # print(np.linalg.cond(theory_cov))
