@@ -19,7 +19,7 @@ if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 
 # Determine nside and lmax.
-nside = 16
+nside = 32
 lmax = 2 * nside
 npix = hp.nside2npix(nside)
 
@@ -51,7 +51,7 @@ np.save(out_dir + 'cov.npy', theory_cov)
 
 theory_cov = np.load(out_dir + 'cov.npy')
 
-var = theory_cov[0,0]
+var = theory_cov[0, 0]
 sigma = np.sqrt(var)
 mu = -0.5 * var + np.log(shift)
 
@@ -63,7 +63,7 @@ u, s, vh = np.linalg.svd(theory_cov)
 # plt.show()
 # exit(0)
 
-rcond = 0.05
+rcond = 0.2
 good_vecs = s / s[0] > rcond
 
 s = s[good_vecs]
@@ -77,18 +77,23 @@ u = np.load(out_dir + 'u.npy')
 s = np.load(out_dir + 's.npy')
 
 noise_cov = np.cov(kappas_noise[mask, :])
-#
-# _, s_noise, _ = np.linalg.svd(noise_cov)
-#
+
+_, s_noise, _ = np.linalg.svd(noise_cov)
+
 # plt.clf()
 # plt.plot(s_noise/s_noise[0])
 # plt.show()
 # exit(0)
 
+rcond = 0.001
+
 inv_noise_cov = np.linalg.pinv(noise_cov, rcond)
 
 ms = eunomia.MapSampler(kn, shift, mu, s, u, inv_noise_cov)
-chain, logp = ms.sample(50, 1, 0.5, 10000, 1, 0.5)
+chain, logp = ms.sample(50, 1, 0.5, 10000, 1, 0.2)
+
+ms = eunomia.MapSampler(kn, shift, mu, s, u, inv_noise_cov * 0)
+prior_chain, logp = ms.sample(50, 1, 0.5, 10000, 1, 0.5)
 
 # print(np.linalg.cond(theory_cov))
 # print(theory_cov.shape)
@@ -96,7 +101,11 @@ chain, logp = ms.sample(50, 1, 0.5, 10000, 1, 0.5)
 np.save(out_dir + 'chain.npy', chain)
 np.save(out_dir + 'logp.npy', logp)
 
-chain = chain @ u.T
+chain = np.exp(chain @ u.T + mu) - shift
+prior_chain = np.exp(prior_chain @ u.T + mu) - shift
+
+for i in range(chain.shape[0]):
+    chain[i, :] -= chain[i, :].mean()
 
 plt.clf()
 plt.plot(range(len(logp)), logp)
@@ -105,8 +114,22 @@ plt.ylabel('Log-Likelihood')
 plt.tight_layout()
 plt.savefig(fig_dir + 'logp', dpi=300)
 
+k[mask] -= k[mask].mean()
+kn[mask] -= kn[mask].mean()
+ki = chain.mean(axis=0)
+
+plt.clf()
+_, bins, _ = plt.hist(k[mask] - kn[mask], 10, label='Observed', alpha=0.5)
+plt.hist(k[mask] - ki, bins, label='Improved', alpha=0.5)
+plt.legend()
+plt.savefig(fig_dir + 'dk_comp.png', dpi=300)
+
+
+plot_inds = np.random.choice(np.arange(mask.sum()), 5, replace=False)
+
 plt.clf()
 c = ChainConsumer()
-c.add_chain(chain[:, :5])
-c.plotter.plot(figsize="column")
+c.add_chain(prior_chain[:, plot_inds], name='Prior')
+c.add_chain(chain[:, plot_inds], name='Noise + Prior')
+c.plotter.plot(figsize="column", truth=k[mask][:5])
 plt.savefig(fig_dir + 'corner', dpi=300)
