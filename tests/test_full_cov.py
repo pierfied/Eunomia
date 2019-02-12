@@ -76,16 +76,16 @@ np.save(out_dir + 's.npy', s)
 u = np.load(out_dir + 'u.npy')
 s = np.load(out_dir + 's.npy')
 
-noise_cov = np.cov(kappas_noise[mask, :])
+noise_cov = np.cov(kappas_noise[mask, :] - kappas[mask, :])
 
-_, s_noise, _ = np.linalg.svd(noise_cov)
-
+# _, s_noise, _ = np.linalg.svd(noise_cov)
+#
 # plt.clf()
 # plt.plot(s_noise/s_noise[0])
 # plt.show()
 # exit(0)
 
-rcond = 0.001
+rcond = 0.01
 
 inv_noise_cov = np.linalg.pinv(noise_cov, rcond)
 
