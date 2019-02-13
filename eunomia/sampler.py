@@ -13,22 +13,25 @@ class SampleChain(ctypes.Structure):
 
 class LikelihoodArgs(ctypes.Structure):
     _fields_ = [('num_sing_vecs', ctypes.c_int),
+                ('u_joint', ctypes.POINTER(ctypes.c_double)),
+                ('mu_joint', ctypes.POINTER(ctypes.c_double)),
                 ('npix', ctypes.c_int),
                 ('shift', ctypes.c_double),
                 ('mu', ctypes.c_double),
-                ('inv_s', ctypes.POINTER(ctypes.c_double)),
-                ('u', ctypes.POINTER(ctypes.c_double)),
+                ('inv_theory_cov', ctypes.POINTER(ctypes.c_double)),
                 ('k_obs', ctypes.POINTER(ctypes.c_double)),
                 ('inv_noise_cov', ctypes.POINTER(ctypes.c_double))]
 
 
 class MapSampler:
-    def __init__(self, k_obs, shift, mu, s, u, inv_noise_cov):
+    def __init__(self, k_obs, s_joint, u_joint, mu_joint, shift, mu, inv_theory_cov, inv_noise_cov):
         self.k_obs = k_obs
+        self.s_joint = s_joint
+        self.u_joint = u_joint
+        self.mu_joint = mu_joint
         self.shift = shift
         self.mu = mu
-        self.s = s
-        self.u = u
+        self.inv_theory_cov = inv_theory_cov
         self.inv_noise_cov = inv_noise_cov
 
     def sample(self, num_burn, num_burn_steps, burn_epsilon, num_samps, num_samp_steps, samp_epsilon):
@@ -51,11 +54,12 @@ class MapSampler:
         #
         # epsilon *= sigma
 
-        num_sing_vecs = len(self.s)
+        num_sing_vecs = len(self.s_joint)
 
         k_obs = np.ascontiguousarray(self.k_obs, dtype=np.double)
-        inv_s = np.ascontiguousarray(1 / self.s.ravel(), dtype=np.double)
-        u = np.ascontiguousarray(self.u.ravel(), dtype=np.double)
+        u_joint = np.ascontiguousarray(self.u_joint.ravel(), dtype=np.double)
+        mu_joint = np.ascontiguousarray(self.mu_joint.ravel(), dtype=np.double)
+        inv_theory_cov = np.ascontiguousarray(self.inv_theory_cov.ravel(), dtype=np.double)
         inv_noise_cov = np.ascontiguousarray(self.inv_noise_cov.ravel(), dtype=np.double)
 
         # print(s)
@@ -64,26 +68,27 @@ class MapSampler:
         # exit(0)
 
         args = LikelihoodArgs()
-        args.num_sing_vecs = self.u.shape[1]
-        args.npix = self.u.shape[0]
+        args.num_sing_vecs = self.u_joint.shape[1]
+        args.u_joint = u_joint.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        args.mu_joint = mu_joint.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        args.npix = self.u_joint.shape[0]
         args.shift = self.shift
         args.mu = self.mu
-        args.inv_s = inv_s.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
-        args.u = u.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        args.inv_theory_cov = inv_theory_cov.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.k_obs = k_obs.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.inv_noise_cov = inv_noise_cov.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
 
         # y0 = np.ascontiguousarray(mu + np.random.standard_normal(num_y_params) * sigma)
         # y0_p = y0.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
 
-        x0 = np.ascontiguousarray(np.random.standard_normal(num_sing_vecs) * np.sqrt(self.s))
+        x0 = np.ascontiguousarray(np.random.standard_normal(num_sing_vecs) * np.sqrt(self.s_joint))
         x0_p = x0.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
 
         # m = np.ascontiguousarray(np.ones(num_sing_vecs, dtype=np.double))
-        m = np.ascontiguousarray(1 / self.s)
+        m = np.ascontiguousarray(1 / self.s_joint)
         m_p = m.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
 
-        sigmap = np.ascontiguousarray(1 / np.sqrt(self.s))
+        sigmap = np.ascontiguousarray(1 / np.sqrt(self.s_joint))
         sigmap_p = sigmap.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
 
         print('Starting Sampling')
