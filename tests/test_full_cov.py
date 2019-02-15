@@ -19,12 +19,12 @@ if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 
 # Determine nside and lmax.
-nside = 128
+nside = 32
 lmax = 2 * nside
 
 # Load in the convergence map.
 kappas = np.load(data_dir + 'kappas_{0}_{1}.npy'.format(nside, lmax))
-# kappas_noise = np.load(data_dir + 'kappas_noise_{0}_{1}.npy'.format(nside, lmax))
+kappas_noise = np.load(data_dir + 'kappas_noise_{0}_{1}.npy'.format(nside, lmax))
 gammas_noise = np.load(data_dir + 'gammas_noise_{0}_{1}.npy'.format(nside, lmax))
 # kappas_noise = kappas.copy()
 
@@ -35,7 +35,7 @@ gammas_noise = np.load(data_dir + 'gammas_noise_{0}_{1}.npy'.format(nside, lmax)
 # kappas_noise = kappas.copy()
 
 k = kappas[:, 0]
-# kn = kappas_noise[:, 0]
+kn = kappas_noise[:, 0]
 # # g1_obs, g2_obs = eunomia.sim_tools.shear_conv_transformations.conv2shear(k, lmax)
 g1_obs = gammas_noise[0, :, 0]
 g2_obs = gammas_noise[1, :, 0]
@@ -105,20 +105,20 @@ sigma = np.sqrt(var)
 mu = -0.5 * var + np.log(shift)
 
 # u, s, vh = np.linalg.svd(theory_cov)
-
-# s[1000:] = 0
 #
-# theory_cov = u * np.diag(s) * s
-
-
-
-# plt.clf()
-# plt.plot(s/s[0])
-# plt.savefig(fig_dir + 's.png', dpi=300)
-# plt.show()
-# exit(0)
-
-# rcond = 0.4
+# # s[1000:] = 0
+# #
+# # theory_cov = u * np.diag(s) * s
+#
+#
+#
+# # plt.clf()
+# # plt.semilogy(s/s[0])
+# # # plt.savefig(fig_dir + 's.png', dpi=300)
+# # plt.show()
+# # exit(0)
+#
+# rcond = 0.2
 # # rcond = 0.6
 # good_vecs = s / s[0] > rcond
 #
@@ -177,7 +177,7 @@ s = np.load(out_dir + 's.npy')
 # plt.suptitle('Full $\kappa$ Covariance (Zoomed)')
 # plt.savefig(fig_dir + 'kappa_full_cov_zoomed', dpi=300)
 
-k2g1, k2g2 = eunomia.sim_tools.shear_conv_transformations.compute_full_conv2shear_mats(nside, lmax, mask, bmask)
+# k2g1, k2g2 = eunomia.sim_tools.shear_conv_transformations.compute_full_conv2shear_mats(nside, lmax, mask, bmask)
 
 # g1_t, g2_t = eunomia.sim_tools.shear_conv_transformations.conv2shear(k, lmax)
 # g1_l = k2g1 @ k
@@ -194,6 +194,50 @@ k2g1, k2g2 = eunomia.sim_tools.shear_conv_transformations.compute_full_conv2shea
 k2g1 = np.load(out_dir + 'k2g1.npy')
 k2g2 = np.load(out_dir + 'k2g2.npy')
 
+u,s,v = np.linalg.svd(theory_cov)
+
+tcond = 0.2
+
+good_vecs = s/s[0] > tcond
+
+s = s[good_vecs]
+u = u[:, good_vecs]
+
+theory_cov = u @ np.diag(s) @ u.T
+theory_inv = u @ np.diag(1/s) @ u.T
+
+sn_std = 0.0045
+
+S = np.ones(mask.sum()) * (sn_std ** 2)
+
+Sigma_1_inv = k2g1.T @ np.diag(1/S) @ k2g1
+Sigma_2_inv = k2g2.T @ np.diag(1/S) @ k2g2
+
+kn[bmask] -= kn[bmask].mean()
+y_obs = np.log(shift + kn[bmask])
+
+Q_1_inv = np.diag(np.exp(y_obs)) @ Sigma_1_inv @ np.diag(np.exp(y_obs))
+Q_2_inv = np.diag(np.exp(y_obs)) @ Sigma_2_inv @ np.diag(np.exp(y_obs))
+
+tot_inv = theory_inv + Q_1_inv + Q_2_inv
+
+u,s,v = np.linalg.svd(tot_inv)
+# plt.plot(s/s[0])
+# plt.show()
+# exit(0)
+
+tcond = 0.16
+
+good_vecs = s/s[0] > tcond
+
+s = s[good_vecs]
+u = u[:, good_vecs]
+
+tot_cov = u @ np.diag(1/s) @ u.T
+
+x_mu = tot_cov @ (theory_inv @ (np.ones(bmask.sum()) * mu).T + (Q_1_inv + Q_2_inv) @ y_obs.T)
+
+
 # k2g1 = np.zeros((1,1))
 # k2g2 = np.zeros((1,1))
 
@@ -209,11 +253,27 @@ g2_obs = g2_obs[mask]
 # sn_std = 0.003
 # sn_std = 0.0014
 # sn_std = 0.0045
-sn_std = 0.009
-sn_var = sn_std ** 2
+# # sn_std = 0.009
+# sn_var = sn_std ** 2
 
-ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1, k2g2, shift, mu, s, u, sn_var, inds)
-chain, logp = ms.sample(50, 1, 0.25, 1000, 1, 0.25)
+# sn_var = np.load(data_dir + 'shape_noise.npy')
+
+theory_cov = np.load(out_dir + 'cov.npy')
+
+u,s,v = np.linalg.svd(theory_cov)
+
+tcond = 0.2
+
+good_vecs = s/s[0] > tcond
+
+s = s[good_vecs]
+u = u[:, good_vecs]
+
+theory_cov = u @ np.diag(s) @ u.T
+theory_inv = u @ np.diag(1/s) @ u.T
+
+ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1, k2g2, shift, mu, s, u, np.ones_like(x_mu) * mu, theory_inv, S, inds)
+chain, logp = ms.sample(50, 1, 0.5, 1000, 1, 0.5)
 
 # print(np.linalg.cond(theory_cov))
 # print(theory_cov.shape)
@@ -221,7 +281,32 @@ chain, logp = ms.sample(50, 1, 0.25, 1000, 1, 0.25)
 np.save(out_dir + 'chain.npy', chain)
 np.save(out_dir + 'logp.npy', logp)
 
-chain = (u @ chain.T).T
+mask_in_bmask = np.zeros_like(mask, dtype=bool)
+mask_in_bmask[mask] = True
+mask_in_bmask = mask_in_bmask[bmask]
+
+chain = chain @ u.T
+
+for i in tqdm(range(chain.shape[0])):
+    chain[i,:] += mu
+
+chain = (np.exp(chain) - shift)[:,mask_in_bmask]
+
+for i in tqdm(range(chain.shape[0])):
+    chain[i,:] -= chain[i,:].mean()
+
+k_true = k[mask] - k[mask].mean()
+k_noise = kn[mask] - kn[mask].mean()
+k_chain = chain.mean(axis=0)
+
+delta_k_noise = k_noise - k_true
+delta_k_chain = k_chain - k_true
+
+plt.clf()
+_, bins = np.histogram(np.concatenate((delta_k_chain, delta_k_noise)), 10)
+plt.hist(k_noise - k_true, bins, alpha=0.5)
+plt.hist(k_chain - k_true, bins, alpha=0.5)
+plt.savefig(fig_dir + 'dk_hist.png', dpi=300, bbox_inches='tight')
 
 plt.clf()
 plt.plot(range(len(logp)), logp)
@@ -233,5 +318,5 @@ plt.savefig(fig_dir + 'logp', dpi=300)
 plt.clf()
 c = ChainConsumer()
 c.add_chain(chain[:, :5])
-c.plotter.plot(figsize="column")
+c.plotter.plot(figsize="column", truth=k_true[:5])
 plt.savefig(fig_dir + 'corner', dpi=300)

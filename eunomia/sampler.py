@@ -13,21 +13,22 @@ class SampleChain(ctypes.Structure):
 
 class LikelihoodArgs(ctypes.Structure):
     _fields_ = [('num_sing_vecs', ctypes.c_int),
+                ('u', ctypes.POINTER(ctypes.c_double)),
+                ('x_mu', ctypes.POINTER(ctypes.c_double)),
                 ('shift', ctypes.c_double),
                 ('mu', ctypes.c_double),
-                ('inv_s', ctypes.POINTER(ctypes.c_double)),
-                ('u', ctypes.POINTER(ctypes.c_double)),
+                ('inv_theory_cov', ctypes.POINTER(ctypes.c_double)),
                 ('g1_obs', ctypes.POINTER(ctypes.c_double)),
                 ('g2_obs', ctypes.POINTER(ctypes.c_double)),
                 ('k2g1', ctypes.POINTER(ctypes.c_double)),
                 ('k2g2', ctypes.POINTER(ctypes.c_double)),
-                ('sn_var', ctypes.c_double),
+                ('sn_var', ctypes.POINTER(ctypes.c_double)),
                 ('mask_npix', ctypes.c_int),
                 ('buffered_npix', ctypes.c_int)]
 
 
 class MapSampler:
-    def __init__(self, g1_obs, g2_obs, k2g1, k2g2, shift, mu, s, u, sn_var, inds):
+    def __init__(self, g1_obs, g2_obs, k2g1, k2g2, shift, mu, s, u, x_mu, inv_theory_cov, sn_var, inds):
         self.g1_obs = g1_obs
         self.g2_obs = g2_obs
         self.k2g1 = k2g1
@@ -36,6 +37,8 @@ class MapSampler:
         self.mu = mu
         self.s = s
         self.u = u
+        self.x_mu = x_mu
+        self.inv_theory_cov = inv_theory_cov
         self.sn_var = sn_var
         self.inds = inds
 
@@ -70,8 +73,10 @@ class MapSampler:
         g2_obs = np.ascontiguousarray(self.g2_obs, dtype=np.double)
         k2g1 = np.ascontiguousarray(self.k2g1.ravel(), dtype=np.double)
         k2g2 = np.ascontiguousarray(self.k2g2.ravel(), dtype=np.double)
-        inv_s = np.ascontiguousarray(1 / self.s.ravel(), dtype=np.double)
         u = np.ascontiguousarray(self.u.ravel(), dtype=np.double)
+        x_mu = np.ascontiguousarray(self.x_mu, dtype=np.double)
+        inv_theory_cov = np.ascontiguousarray(self.inv_theory_cov.ravel(), dtype=np.double)
+        sn_var = np.ascontiguousarray(self.sn_var, dtype=np.double)
 
         # print(s)
         # print(s.shape)
@@ -79,15 +84,16 @@ class MapSampler:
         # exit(0)
 
         args = LikelihoodArgs()
-        args.num_y_params = num_pix
-        args.mu = self.mu
-        args.inv_s = inv_s.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.u = u.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        args.x_mu = x_mu.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        args.mu = self.mu
+        args.shift = self.shift
+        args.inv_theory_cov = inv_theory_cov.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.g1_obs = g1_obs.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.g2_obs = g2_obs.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.k2g1 = k2g1.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.k2g2 = k2g2.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
-        args.sn_var = self.sn_var
+        args.sn_var = sn_var.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
         args.num_sing_vecs = num_sing_vecs
         args.mask_npix = self.k2g1.shape[0]
         args.buffered_npix = self.k2g1.shape[1]

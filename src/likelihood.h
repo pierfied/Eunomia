@@ -11,15 +11,16 @@
 
 typedef struct {
     int num_sing_vecs;
+    double *u;
+    double *x_mu;
     double shift;
     double mu;
-    double *inv_s;
-    double *u;
+    double *inv_theory_cov;
     double *g1_obs;
     double *g2_obs;
     double *k2g1;
     double *k2g2;
-    double sn_var;
+    double *sn_var;
     int mask_npix;
     int buffered_npix;
 } LikelihoodArgs;

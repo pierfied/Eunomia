@@ -35,19 +35,22 @@ SampleChain sample_map(double *x0, double *m, double *sigma_p, LikelihoodArgs ar
 Hamiltonian map_likelihood(double *params, void *args_ptr) {
     LikelihoodArgs *args = (LikelihoodArgs *) args_ptr;
 
-    double mu = args->mu;
-    double *inv_s = args->inv_s;
     double *u = args->u;
+    double *x_mu = args->x_mu;
+    double mu = args->mu;
+    double *inv_theory_cov = args->inv_theory_cov;
     double *g1_obs = args->g1_obs;
     double *g2_obs = args->g2_obs;
     double *k2g1 = args->k2g1;
     double *k2g2 = args->k2g2;
-    double sn_var = args->sn_var;
+    double *sn_var = args->sn_var;
     double shift = args->shift;
     int num_sing_vecs = args->num_sing_vecs;
     int mask_npix = args->mask_npix;
     int buffered_npix = args->buffered_npix;
 
+    double y[buffered_npix];
+    double delta_y[buffered_npix];
     double exp_y[buffered_npix];
 #pragma omp parallel for
     for (int i = 0; i < buffered_npix; ++i) {
@@ -57,7 +60,11 @@ Hamiltonian map_likelihood(double *params, void *args_ptr) {
             y_i += u[i * num_sing_vecs + j] * params[j];
         }
 
-        exp_y[i] = exp(y_i + mu);
+        y_i += x_mu[i];
+
+        y[i] = y_i;
+        delta_y[i] = y_i - mu;
+        exp_y[i] = exp(y_i);
     }
 
     double g1[mask_npix];
@@ -87,25 +94,50 @@ Hamiltonian map_likelihood(double *params, void *args_ptr) {
 
     double *grad = malloc(sizeof(double) * num_sing_vecs);
 
+    double norm_grad[buffered_npix];
     double normal_contrib = 0;
-    for (int i = 0; i < num_sing_vecs; ++i) {
-        normal_contrib += params[i] * inv_s[i] * params[i];
+#pragma omp parallel for
+    for (int i = 0; i < buffered_npix; ++i) {
+        double normal_contrib_i = 0;
+
+        for (int j = 0; j < buffered_npix; ++j) {
+            normal_contrib_i += inv_theory_cov[i * buffered_npix + j] * delta_y[j];
+        }
+
+        norm_grad[i] = - normal_contrib_i;
+
+        normal_contrib_i *= delta_y[i];
+
+#pragma omp atomic
+        normal_contrib += normal_contrib_i;
     }
     normal_contrib *= -0.5;
 
+    double norm_grad_x[num_sing_vecs];
+#pragma omp parallel for
+    for (int i = 0; i < num_sing_vecs; ++i) {
+        double norm_grad_x_i = 0;
+
+        for (int j = 0; j < buffered_npix; ++j) {
+            norm_grad_x_i += norm_grad[j] * u[j * num_sing_vecs + i];
+        }
+
+        norm_grad_x[i] = norm_grad_x_i;
+    }
+
     double shear_contrib = 0;
     for (int i = 0; i < mask_npix; ++i) {
-        shear_contrib += delta_g1[i] * delta_g1[i] + delta_g2[i] * delta_g2[i];
+        shear_contrib += (delta_g1[i] * delta_g1[i] + delta_g2[i] * delta_g2[i]) / sn_var[i];
     }
-    shear_contrib /= -2 * sn_var;
+    shear_contrib *= -0.5;
 
 
     double df1_dg1[mask_npix];
     double df2_dg2[mask_npix];
 #pragma omp parallel for
     for (int i = 0; i < mask_npix; ++i) {
-        df1_dg1[i] = -delta_g1[i] / sn_var;
-        df2_dg2[i] = -delta_g2[i] / sn_var;
+        df1_dg1[i] = -delta_g1[i] / sn_var[i];
+        df2_dg2[i] = -delta_g2[i] / sn_var[i];
     }
 
     double df1_dy[buffered_npix];
@@ -143,7 +175,7 @@ Hamiltonian map_likelihood(double *params, void *args_ptr) {
 
 #pragma omp parallel for
     for (int i = 0; i < num_sing_vecs; ++i) {
-        grad[i] = -inv_s[i] * params[i] + df1_dx[i] + df2_dx[i];
+        grad[i] = norm_grad_x[i] + df1_dx[i] + df2_dx[i];
     }
 
     Hamiltonian likelihood;
