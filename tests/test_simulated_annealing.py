@@ -8,7 +8,7 @@ import pandas as pd
 import os
 from chainconsumer import ChainConsumer
 from tqdm import tqdm
-import ctypes
+import matplotlib as mpl
 
 # Set important directories and create the figure directory if necessary.
 data_dir = './test_data/'
@@ -179,107 +179,103 @@ theory_inv = u @ np.diag(1/s) @ u.T
 
 ################################################################################
 
-class LikelihoodArgs(ctypes.Structure):
-    _fields_ = [('num_sing_vecs', ctypes.c_int),
-                ('u', ctypes.POINTER(ctypes.c_double)),
-                ('x_mu', ctypes.POINTER(ctypes.c_double)),
-                ('shift', ctypes.c_double),
-                ('mu', ctypes.c_double),
-                ('inv_theory_cov', ctypes.POINTER(ctypes.c_double)),
-                ('g1_obs', ctypes.POINTER(ctypes.c_double)),
-                ('g2_obs', ctypes.POINTER(ctypes.c_double)),
-                ('k2g1', ctypes.POINTER(ctypes.c_double)),
-                ('k2g2', ctypes.POINTER(ctypes.c_double)),
-                ('sn_var', ctypes.POINTER(ctypes.c_double)),
-                ('mask_npix', ctypes.c_int),
-                ('buffered_npix', ctypes.c_int)]
+ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1, k2g2, shift, mu, s, u, np.ones(u.shape[0]) * mu, theory_inv, S, inds)
+chain, logp = ms.sample(1000, 1, 0.5, 1e-2)
+# exit(0)
 
-################################################################################
+# print(np.linalg.cond(theory_cov))
+# print(theory_cov.shape)
 
-u_contig = np.ascontiguousarray(u.ravel(), dtype=np.double)
-x_mu_contig = np.ascontiguousarray(np.ones(u.shape[0]) * mu, dtype=np.double)
-inv_theory_cov_contig = np.ascontiguousarray(theory_inv.ravel(), dtype=np.double)
-g1_obs_contig = np.ascontiguousarray(g1_obs, dtype=np.double)
-g2_obs_contig = np.ascontiguousarray(g2_obs, dtype=np.double)
-k2g1_contig = np.ascontiguousarray(k2g1.ravel(), dtype=np.double)
-k2g2_contig = np.ascontiguousarray(k2g2.ravel(), dtype=np.double)
-sn_var_contig = np.ascontiguousarray(S, dtype=np.double)
-
-dptr = ctypes.POINTER(ctypes.c_double)
-
-args = LikelihoodArgs()
-args.num_sing_vecs = u.shape[1]
-args.u = u_contig.ctypes.data_as(dptr)
-args.x_mu = x_mu_contig.ctypes.data_as(dptr)
-args.shift = shift
-args.mu = mu
-args.inv_theory_cov = inv_theory_cov_contig.ctypes.data_as(dptr)
-args.g1_obs = g1_obs_contig.ctypes.data_as(dptr)
-args.g2_obs = g2_obs_contig.ctypes.data_as(dptr)
-args.k2g1 = k2g1_contig.ctypes.data_as(dptr)
-args.k2g2 = k2g2_contig.ctypes.data_as(dptr)
-args.sn_var = sn_var_contig.ctypes.data_as(dptr)
-args.mask_npix = mask.sum()
-args.buffered_npix = bmask.sum()
-
-################################################################################
-
-lib_path = os.path.join(os.path.dirname(__file__), '../lib/liblikelihood.so')
-sampler_lib = ctypes.cdll.LoadLibrary(lib_path)
-
-maximizer = sampler_lib.maximizer
-maximizer.argtypes = [dptr, dptr, LikelihoodArgs]
-maximizer.restype = dptr
-
-y0 = np.log(shift + kn[bmask])
-
-# x0 = np.ascontiguousarray(np.random.standard_normal(u.shape[1]) * np.sqrt(s))
-x0 = np.ascontiguousarray(u.T @ (y0 - mu), dtype=np.double)
-x0_p = x0.ctypes.data_as(dptr)
-
-s_contig = np.ascontiguousarray(s, dtype=np.double)
-s_p = s_contig.ctypes.data_as(dptr)
-
-results = maximizer(x0_p, s_p, args)
-
-max_like_x = np.array([results[i] for i in range(u.shape[1])])
-
-################################################################################
+np.save(out_dir + 'chain.npy', chain)
+np.save(out_dir + 'logp.npy', logp)
 
 mask_in_bmask = np.zeros_like(mask, dtype=bool)
 mask_in_bmask[mask] = True
 mask_in_bmask = mask_in_bmask[bmask]
 
-max_like_y = u @ max_like_x + mu
-max_like_kappa = np.exp(max_like_y) - shift
-max_like_kappa = max_like_kappa[mask_in_bmask]
-max_like_kappa -= max_like_kappa.mean()
+chain = chain @ u.T
 
-m = np.zeros(hp.nside2npix(nside))
-m[mask] = max_like_kappa
-k[~mask] = 0
-hp.mollview(m, title='Improved')
-hp.mollview(k, title='True')
-hp.mollview(kn, title='KSB')
-plt.show()
+for i in tqdm(range(chain.shape[0])):
+    chain[i,:] += mu
 
-cl_m = hp.anafast(m)
-k[~mask] = 0
-k[mask] -= k[mask].mean()
-cl_t = hp.anafast(k)
-plt.plot(cl_t)
-plt.plot(cl_m)
-plt.show()
+chain = (np.exp(chain) - shift)[:,mask_in_bmask]
+
+for i in tqdm(range(chain.shape[0])):
+    chain[i,:] -= chain[i,:].mean()
 
 k_true = k[mask] - k[mask].mean()
 k_noise = kn[mask] - kn[mask].mean()
-k_chain = max_like_kappa
+k_chain = chain[-1,:]
+
+m = np.zeros(hp.nside2npix(nside))
+m[mask] = k_chain
+cl_chain = hp.anafast(m)
+plt.clf()
+hp.orthview(m, rot=[30,-65], half_sky=True, title='HMC-SA Max Likelihood $\\kappa$ Map', cbar=None)
+hp.graticule(10,10)
+ax = plt.gca()
+image = ax.get_images()[0]
+plt.colorbar(image)
+image.norm = mpl.colors.SymLogNorm(0.001)
+image.set_clim(-0.01,0.01)
+plt.savefig(fig_dir + 'sa_map.png', dpi=300, bbox_inches='tight')
+
+m[mask] = k_true
+cl_true = hp.anafast(m)
+plt.clf()
+hp.orthview(m, rot=[30,-65], half_sky=True, title='True $\\kappa$ Map', cbar=None)
+hp.graticule(10,10)
+ax = plt.gca()
+image = ax.get_images()[0]
+plt.colorbar(image)
+image.norm = mpl.colors.SymLogNorm(0.001)
+image.set_clim(-0.01,0.01)
+plt.savefig(fig_dir + 'true_map.png', dpi=300, bbox_inches='tight')
+
+m[mask] = k_noise
+cl_noise = hp.anafast(m)
+plt.clf()
+hp.orthview(m, rot=[30,-65], half_sky=True, title='KSB $\\kappa$ Map', cbar=None)
+hp.graticule(10,10)
+ax = plt.gca()
+image = ax.get_images()[0]
+plt.colorbar(image)
+image.norm = mpl.colors.SymLogNorm(0.001)
+image.set_clim(-0.01,0.01)
+plt.savefig(fig_dir + 'ksb_map.png', dpi=300, bbox_inches='tight')
 
 delta_k_noise = k_noise - k_true
 delta_k_chain = k_chain - k_true
 
 plt.clf()
 _, bins = np.histogram(np.concatenate((delta_k_chain, delta_k_noise)), 10)
-plt.hist(k_noise - k_true, bins, alpha=0.5)
-plt.hist(k_chain - k_true, bins, alpha=0.5)
+plt.hist(k_noise - k_true, bins, alpha=0.5, label='KSB')
+plt.hist(k_chain - k_true, bins, alpha=0.5, label='HMC-SA Max Likelihood')
+plt.xlabel('$\\Delta \\kappa$')
+plt.ylabel('Number of Pixels')
+plt.legend()
 plt.savefig(fig_dir + 'dk_hist.png', dpi=300, bbox_inches='tight')
+
+plt.clf()
+plt.plot(cl_true, label='True')
+plt.plot(cl_noise, label='KSB')
+plt.plot(cl_chain, label='HMC-SA Max Likelihood')
+plt.xlabel('$\\ell$')
+plt.ylabel('$C_\\ell$')
+plt.legend()
+plt.savefig(fig_dir + 'cl_comp.png', dpi=300, bbox_inches='tight')
+
+plt.clf()
+plt.semilogy(range(len(logp)), -logp)
+plt.xlabel('Sample #')
+plt.ylabel('Log-Likelihood')
+plt.tight_layout()
+plt.savefig(fig_dir + 'logp', dpi=300)
+
+exit(0)
+
+plt.clf()
+c = ChainConsumer()
+c.add_chain(chain[:, :5])
+c.plotter.plot(figsize="column", truth=k_true[:5])
+plt.savefig(fig_dir + 'corner', dpi=300)

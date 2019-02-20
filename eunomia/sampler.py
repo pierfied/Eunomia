@@ -42,15 +42,14 @@ class MapSampler:
         self.sn_var = sn_var
         self.inds = inds
 
-    def sample(self, num_burn, num_burn_steps, burn_epsilon, num_samps, num_samp_steps, samp_epsilon):
+    def sample(self, num_samps, num_steps, epsilon, T_scale=1):
         lib_path = os.path.join(os.path.dirname(__file__), '../lib/liblikelihood.so')
         sampler_lib = ctypes.cdll.LoadLibrary(lib_path)
 
         sampler = sampler_lib.sample_map
         sampler.argtypes = [ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double),
                             ctypes.POINTER(ctypes.c_double), LikelihoodArgs,
-                            ctypes.c_int, ctypes.c_int, ctypes.c_double,
-                            ctypes.c_int, ctypes.c_int, ctypes.c_double]
+                            ctypes.c_int, ctypes.c_int, ctypes.c_double, ctypes.c_double]
         sampler.restype = SampleChain
 
         # jacobian = np.diag(1/(1 + self.kappa_obs))
@@ -113,8 +112,7 @@ class MapSampler:
 
         print('Starting Sampling')
 
-        results = sampler(x0_p, m_p, sigmap_p, args, num_burn, num_burn_steps, burn_epsilon,
-                          num_samps, num_samp_steps, samp_epsilon)
+        results = sampler(x0_p, m_p, sigmap_p, args, num_samps, num_steps, epsilon, T_scale)
 
         print('Sampling Finished')
 

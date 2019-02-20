@@ -11,18 +11,15 @@
 #include <gsl/gsl_linalg.h>
 
 SampleChain sample_map(double *x0, double *m, double *sigma_p, LikelihoodArgs args,
-                       int num_burn, int num_burn_steps, double burn_epsilon,
-                       int num_samps, int num_samp_steps, double samp_epsilon) {
+                       int num_samps, int num_steps, double epsilon, double T_scale) {
     HMCArgs hmc_args;
     hmc_args.log_likelihood = map_likelihood;
     hmc_args.likelihood_args = &args;
     hmc_args.num_params = args.num_sing_vecs;
-    hmc_args.num_burn = num_burn;
-    hmc_args.num_burn_steps = num_burn_steps;
-    hmc_args.burn_epsilon = burn_epsilon;
-    hmc_args.num_samples = num_samps;
-    hmc_args.num_samp_steps = num_samp_steps;
-    hmc_args.samp_epsilon = samp_epsilon;
+    hmc_args.num_samps = num_samps;
+    hmc_args.num_steps = num_steps;
+    hmc_args.epsilon = epsilon;
+    hmc_args.T_scale = T_scale;
     hmc_args.x0 = x0;
     hmc_args.m = m;
     hmc_args.sigma_p = sigma_p;

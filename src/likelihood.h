@@ -26,8 +26,7 @@ typedef struct {
 } LikelihoodArgs;
 
 SampleChain sample_map(double *x0, double *m, double *sigma_p, LikelihoodArgs args,
-                       int num_burn, int num_burn_steps, double burn_epsilon,
-                       int num_samps, int num_samp_steps, double samp_epsilon);
+                       int num_samps, int num_steps, double epsilon, double T_scale);
 
 Hamiltonian map_likelihood(double *y, void *args_ptr);
 
