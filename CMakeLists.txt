@@ -18,7 +18,7 @@ if (OPENMP_FOUND)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 endif ()
 
-file(GLOB SOURCES src/*.h src/*.c)
+file(GLOB SOURCES src/*.h src/*.c src/*.cpp)
 add_library(likelihood SHARED ${SOURCES})
 
 get_filename_component(LIB_PATH lib REALPATH)
