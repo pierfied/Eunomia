@@ -8,6 +8,7 @@ import pandas as pd
 import os
 from chainconsumer import ChainConsumer
 from tqdm import tqdm
+import ctypes
 
 # Set important directories and create the figure directory if necessary.
 data_dir = './test_data/'
@@ -83,8 +84,11 @@ cl = cl[:lmax + 1] * (pixwin[:lmax + 1] ** 2)
 #
 # inds = np.arange(hp.nside2npix(nside))[mask]
 
-bmask = np.load(data_dir + 'bmask.npy')
+buffer_size = 5
+bmask = np.load(data_dir + 'bmask_{0}_{1}.npy'.format(nside, buffer_size))
 mask = np.load(data_dir + 'des_y1_mask_{0}.npy'.format(nside))
+
+################################################################################
 
 # Compute the full covariance matrix for the map from Cl's.
 shift = 0.053
@@ -104,13 +108,9 @@ var = theory_cov[0,0]
 sigma = np.sqrt(var)
 mu = -0.5 * var + np.log(shift)
 
+################################################################################
+
 # u, s, vh = np.linalg.svd(theory_cov)
-#
-# # s[1000:] = 0
-# #
-# # theory_cov = u * np.diag(s) * s
-#
-#
 #
 # # plt.clf()
 # # plt.semilogy(s/s[0])
@@ -130,63 +130,15 @@ mu = -0.5 * var + np.log(shift)
 #
 # np.save(out_dir + 'u.npy', u)
 # np.save(out_dir + 's.npy', s)
-# exit(0)
+# # exit(0)
 
 u = np.load(out_dir + 'u.npy')
 s = np.load(out_dir + 's.npy')
 
-# s_d = s.copy()
-# s_d[good_vecs] = 1 / s[good_vecs]
-# s_d[~good_vecs] = 0
-
-# inv_cov_m = v.T @ np.diag(s_d) @ u.T
-#
-# inv_cov = np.linalg.pinv(theory_cov, rcond)
-
-# print(u[:, good_vecs])
-# print(v[good_vecs,:])
-# print(np.allclose(u[:, good_vecs], v[good_vecs, :].T))
-# exit(0)
-#
-# print(inv_cov)
-# print(inv_cov_m)
-# print(np.allclose(inv_cov, inv_cov_m))
-# exit(0)
-#
-# plt.clf()
-# plt.plot(s/s[0])
-# plt.show()
-# exit(0)
-
-# mask = ang_sep > 0.5
-# theory_cov[mask] = 0
-
-# print(np.linalg.cond(theory_cov))
-# print(theory_cov.shape)
-# exit(0)
-
-# # Plot the covariance matrix.
-# plt.matshow(theory_cov, norm=matplotlib.colors.LogNorm())
-# cbar = plt.colorbar()
-# plt.suptitle('Full $\kappa$ Covariance')
-# plt.savefig(fig_dir + 'kappa_full_cov', dpi=300)
-#
-# # Show a zoomed in plot of the matrix to show structure.
-# plt.matshow(cov[:100, :100], norm=matplotlib.colors.LogNorm())
-# plt.colorbar()
-# plt.suptitle('Full $\kappa$ Covariance (Zoomed)')
-# plt.savefig(fig_dir + 'kappa_full_cov_zoomed', dpi=300)
+################################################################################
 
 # k2g1, k2g2 = eunomia.sim_tools.shear_conv_transformations.compute_full_conv2shear_mats(nside, lmax, mask, bmask)
-
-# g1_t, g2_t = eunomia.sim_tools.shear_conv_transformations.conv2shear(k, lmax)
-# g1_l = k2g1 @ k
-# g2_l = k2g2 @ k
 #
-# print(np.allclose(g1_t, g1_l))
-# print(np.allclose(g2_t, g2_l))
-# exit(0)
-
 # np.save(out_dir + 'k2g1.npy', k2g1)
 # np.save(out_dir + 'k2g2.npy', k2g2)
 # exit(0)
@@ -194,58 +146,11 @@ s = np.load(out_dir + 's.npy')
 k2g1 = np.load(out_dir + 'k2g1.npy')
 k2g2 = np.load(out_dir + 'k2g2.npy')
 
-u,s,v = np.linalg.svd(theory_cov)
-
-tcond = 0.2
-
-good_vecs = s/s[0] > tcond
-
-s = s[good_vecs]
-u = u[:, good_vecs]
-
-theory_cov = u @ np.diag(s) @ u.T
-theory_inv = u @ np.diag(1/s) @ u.T
+################################################################################
 
 sn_std = 0.0045
 
 S = np.ones(mask.sum()) * (sn_std ** 2)
-
-Sigma_1_inv = k2g1.T @ np.diag(1/S) @ k2g1
-Sigma_2_inv = k2g2.T @ np.diag(1/S) @ k2g2
-
-kn[bmask] -= kn[bmask].mean()
-y_obs = np.log(shift + kn[bmask])
-
-Q_1_inv = np.diag(np.exp(y_obs)) @ Sigma_1_inv @ np.diag(np.exp(y_obs))
-Q_2_inv = np.diag(np.exp(y_obs)) @ Sigma_2_inv @ np.diag(np.exp(y_obs))
-
-tot_inv = theory_inv + Q_1_inv + Q_2_inv
-
-u,s,v = np.linalg.svd(tot_inv)
-# plt.plot(s/s[0])
-# plt.show()
-# exit(0)
-
-tcond = 0.16
-
-good_vecs = s/s[0] > tcond
-
-s = s[good_vecs]
-u = u[:, good_vecs]
-
-tot_cov = u @ np.diag(1/s) @ u.T
-
-x_mu = tot_cov @ (theory_inv @ (np.ones(bmask.sum()) * mu).T + (Q_1_inv + Q_2_inv) @ y_obs.T)
-
-
-# k2g1 = np.zeros((1,1))
-# k2g2 = np.zeros((1,1))
-
-# k2g1 = k2g1[:, mask]
-# k2g1 = k2g1[mask, :]
-#
-# k2g2 = k2g2[:, mask]
-# k2g2 = k2g2[mask, :]
 
 g1_obs = g1_obs[mask]
 g2_obs = g2_obs[mask]
@@ -258,46 +163,117 @@ g2_obs = g2_obs[mask]
 
 # sn_var = np.load(data_dir + 'shape_noise.npy')
 
-theory_cov = np.load(out_dir + 'cov.npy')
-
-u,s,v = np.linalg.svd(theory_cov)
-
-tcond = 0.2
-
-good_vecs = s/s[0] > tcond
-
-s = s[good_vecs]
-u = u[:, good_vecs]
-
-theory_cov = u @ np.diag(s) @ u.T
+# theory_cov = np.load(out_dir + 'cov.npy')
+#
+# u,s,v = np.linalg.svd(theory_cov)
+#
+# tcond = 0.2
+#
+# good_vecs = s/s[0] > tcond
+#
+# s = s[good_vecs]
+# u = u[:, good_vecs]
+#
+# # theory_cov = u @ np.diag(s) @ u.T
 theory_inv = u @ np.diag(1/s) @ u.T
 
-ms = eunomia.MapSampler(g1_obs, g2_obs, k2g1, k2g2, shift, mu, s, u, np.ones_like(x_mu) * mu, theory_inv, S, inds)
-chain, logp = ms.sample(50, 1, 0.5, 1000, 1, 0.5)
+################################################################################
 
-# print(np.linalg.cond(theory_cov))
-# print(theory_cov.shape)
+class LikelihoodArgs(ctypes.Structure):
+    _fields_ = [('num_sing_vecs', ctypes.c_int),
+                ('u', ctypes.POINTER(ctypes.c_double)),
+                ('x_mu', ctypes.POINTER(ctypes.c_double)),
+                ('shift', ctypes.c_double),
+                ('mu', ctypes.c_double),
+                ('inv_theory_cov', ctypes.POINTER(ctypes.c_double)),
+                ('g1_obs', ctypes.POINTER(ctypes.c_double)),
+                ('g2_obs', ctypes.POINTER(ctypes.c_double)),
+                ('k2g1', ctypes.POINTER(ctypes.c_double)),
+                ('k2g2', ctypes.POINTER(ctypes.c_double)),
+                ('sn_var', ctypes.POINTER(ctypes.c_double)),
+                ('mask_npix', ctypes.c_int),
+                ('buffered_npix', ctypes.c_int)]
 
-np.save(out_dir + 'chain.npy', chain)
-np.save(out_dir + 'logp.npy', logp)
+################################################################################
+
+u_contig = np.ascontiguousarray(u.ravel(), dtype=np.double)
+x_mu_contig = np.ascontiguousarray(np.ones(u.shape[0]) * mu, dtype=np.double)
+inv_theory_cov_contig = np.ascontiguousarray(theory_inv.ravel(), dtype=np.double)
+g1_obs_contig = np.ascontiguousarray(g1_obs, dtype=np.double)
+g2_obs_contig = np.ascontiguousarray(g2_obs, dtype=np.double)
+k2g1_contig = np.ascontiguousarray(k2g1.ravel(), dtype=np.double)
+k2g2_contig = np.ascontiguousarray(k2g2.ravel(), dtype=np.double)
+sn_var_contig = np.ascontiguousarray(S, dtype=np.double)
+
+dptr = ctypes.POINTER(ctypes.c_double)
+
+args = LikelihoodArgs()
+args.num_sing_vecs = u.shape[1]
+args.u = u_contig.ctypes.data_as(dptr)
+args.x_mu = x_mu_contig.ctypes.data_as(dptr)
+args.shift = shift
+args.mu = mu
+args.inv_theory_cov = inv_theory_cov_contig.ctypes.data_as(dptr)
+args.g1_obs = g1_obs_contig.ctypes.data_as(dptr)
+args.g2_obs = g2_obs_contig.ctypes.data_as(dptr)
+args.k2g1 = k2g1_contig.ctypes.data_as(dptr)
+args.k2g2 = k2g2_contig.ctypes.data_as(dptr)
+args.sn_var = sn_var_contig.ctypes.data_as(dptr)
+args.mask_npix = mask.sum()
+args.buffered_npix = bmask.sum()
+
+################################################################################
+
+lib_path = os.path.join(os.path.dirname(__file__), '../lib/liblikelihood.so')
+sampler_lib = ctypes.cdll.LoadLibrary(lib_path)
+
+maximizer = sampler_lib.maximizer
+maximizer.argtypes = [dptr, dptr, LikelihoodArgs]
+maximizer.restype = dptr
+
+y0 = np.log(shift + kn[bmask])
+
+# x0 = np.ascontiguousarray(np.random.standard_normal(u.shape[1]) * np.sqrt(s))
+x0 = np.ascontiguousarray(u.T @ (y0 - mu), dtype=np.double)
+x0_p = x0.ctypes.data_as(dptr)
+
+s_contig = np.ascontiguousarray(s, dtype=np.double)
+s_p = s_contig.ctypes.data_as(dptr)
+
+results = maximizer(x0_p, s_p, args)
+
+max_like_x = np.array([results[i] for i in range(u.shape[1])])
+
+################################################################################
 
 mask_in_bmask = np.zeros_like(mask, dtype=bool)
 mask_in_bmask[mask] = True
 mask_in_bmask = mask_in_bmask[bmask]
 
-chain = chain @ u.T
+max_like_y = u @ max_like_x + mu
+max_like_kappa = np.exp(max_like_y) - shift
+max_like_kappa = max_like_kappa[mask_in_bmask]
+max_like_kappa -= max_like_kappa.mean()
 
-for i in tqdm(range(chain.shape[0])):
-    chain[i,:] += mu
+m = np.zeros(hp.nside2npix(nside))
+m[mask] = max_like_kappa
+k[~mask] = 0
+hp.mollview(m, title='Improved')
+hp.mollview(k, title='True')
+hp.mollview(kn, title='KSB')
+plt.show()
 
-chain = (np.exp(chain) - shift)[:,mask_in_bmask]
-
-for i in tqdm(range(chain.shape[0])):
-    chain[i,:] -= chain[i,:].mean()
+cl_m = hp.anafast(m)
+k[~mask] = 0
+k[mask] -= k[mask].mean()
+cl_t = hp.anafast(k)
+plt.plot(cl_t)
+plt.plot(cl_m)
+plt.show()
 
 k_true = k[mask] - k[mask].mean()
 k_noise = kn[mask] - kn[mask].mean()
-k_chain = chain.mean(axis=0)
+k_chain = max_like_kappa
 
 delta_k_noise = k_noise - k_true
 delta_k_chain = k_chain - k_true
@@ -307,16 +283,3 @@ _, bins = np.histogram(np.concatenate((delta_k_chain, delta_k_noise)), 10)
 plt.hist(k_noise - k_true, bins, alpha=0.5)
 plt.hist(k_chain - k_true, bins, alpha=0.5)
 plt.savefig(fig_dir + 'dk_hist.png', dpi=300, bbox_inches='tight')
-
-plt.clf()
-plt.plot(range(len(logp)), logp)
-plt.xlabel('Sample #')
-plt.ylabel('Log-Likelihood')
-plt.tight_layout()
-plt.savefig(fig_dir + 'logp', dpi=300)
-
-plt.clf()
-c = ChainConsumer()
-c.add_chain(chain[:, :5])
-c.plotter.plot(figsize="column", truth=k_true[:5])
-plt.savefig(fig_dir + 'corner', dpi=300)
